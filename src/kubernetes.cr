@@ -674,6 +674,10 @@ module Kubernetes
     group: "apps",
     type: Resource(StatefulSet)
 
+  define_resource "jobs",
+    group: "batch",
+    type: JSON::Any
+
   define_resource "services",
     group: "",
     type: Service,
