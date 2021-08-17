@@ -1,0 +1,18 @@
+---
+apiVersion: jgaskins.wtf/v1
+kind: Florp
+metadata:
+  name: my-florp
+spec:
+  name: "omg florps!"
+  id: "omg-florps"
+  count: 2
+---
+apiVersion: jgaskins.wtf/v1
+kind: Florp
+metadata:
+  name: new-florp
+spec:
+  name: "hello"
+  id: "my-new-florp"
+  count: 1

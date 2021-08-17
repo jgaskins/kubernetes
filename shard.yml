@@ -1,0 +1,17 @@
+name: kubernetes
+version: 0.1.0
+
+authors:
+  - Jamie Gaskins <jgaskins@hey.com>
+
+targets:
+  florps:
+    main: examples/florps_controller.cr
+
+dependencies:
+  db:
+    github: crystal-lang/crystal-db
+
+crystal: 1.1.0
+
+license: MIT

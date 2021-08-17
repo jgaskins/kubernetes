@@ -1,0 +1,8 @@
+FROM crystallang/crystal:1.1.1-alpine
+
+COPY . /florps/
+WORKDIR /florps/
+
+RUN shards && crystal build examples/florp_controller.cr
+
+CMD ["./florps_controller"]

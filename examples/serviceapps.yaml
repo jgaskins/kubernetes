@@ -1,0 +1,10 @@
+---
+apiVersion: example.com/v1
+kind: ServiceApp
+metadata:
+  name: my-svcapp
+spec:
+  domain: "app.omg.lol"       # Applied to the Ingress
+  command: ["sleep", "10000"] # The command for the Deployment pods to run
+  image: "busybox:latest"     # Image for the Deployment to use
+  replicas: 1                 # Number of pods to run for the Deployment
