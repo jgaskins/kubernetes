@@ -210,6 +210,16 @@ module Kubernetes
     end
   end
 
+  struct StatefulSet
+    include Serializable
+
+
+    field replicas : Int32
+    field template : JSON::Any
+    field selector : JSON::Any
+    field volume_claim_templates : JSON::Any
+  end
+
   struct Deployment
     include Serializable
 
@@ -659,6 +669,10 @@ module Kubernetes
   define_resource "deployments",
     group: "apps",
     type: Deployment
+
+  define_resource "statefulsets",
+    group: "apps",
+    type: Resource(StatefulSet)
 
   define_resource "services",
     group: "",
