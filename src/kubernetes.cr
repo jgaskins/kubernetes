@@ -676,7 +676,7 @@ module Kubernetes
 
   define_resource "jobs",
     group: "batch",
-    type: JSON::Any
+    type: Resource(JSON::Any) # TODO: Write Job struct
 
   define_resource "services",
     group: "",
