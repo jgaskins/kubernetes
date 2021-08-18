@@ -73,8 +73,9 @@ module Kubernetes
     field kind : String = ""
     field metadata : Metadata
     field spec : T
+    field status : JSON::Any = JSON::Any.new(nil)
 
-    def initialize(*, @api_version, @kind, @metadata, @spec)
+    def initialize(*, @api_version, @kind, @metadata, @spec, @status = JSON::Any.new(nil))
     end
   end
 
