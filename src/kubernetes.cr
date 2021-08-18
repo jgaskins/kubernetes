@@ -573,9 +573,16 @@ module Kubernetes
     {% singular_name ||= name.gsub(/s$/, "").id %}
 
     class ::Kubernetes::Client
-      def {{name.id}}(namespace : String? = "default")
+      def {{name.id}}(
+        namespace : String? = "default",
+        # FIXME: Currently this is intended to be a string, but maybe we should
+        # make it a Hash/NamedTuple?
+        label_selector = nil,
+      )
         namespace &&= "/namespaces/#{namespace}"
-        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}" 
+        params = URI::Params.new
+        params["labelSelector"] = label_selector if label_selector
+        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}?#{params}"
         get path do |response|
           # response.body_io.gets_to_end
           # JSON.parse response.body_io
