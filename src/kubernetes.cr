@@ -455,7 +455,7 @@ module Kubernetes
       field creation_timestamp : Time
       field labels : Hash(String, String) = {} of String => String
       field annotations : Hash(String, String) = {} of String => String
-      field owner_references : Array(OwnerReference)
+      field owner_references : Array(OwnerReference) = [] of OwnerReference
 
       struct OwnerReference
         include Serializable
