@@ -130,8 +130,6 @@ module Kubernetes
 
     struct Spec
       include Serializable
-
-      # fi
     end
   end
 
