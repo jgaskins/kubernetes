@@ -691,6 +691,11 @@ module Kubernetes
     type: Service,
     prefix: "api"
 
+  define_resource "persistentvolumeclaims",
+    group: "",
+    type: Resource(JSON::Any), # TODO: Write PVC struct,
+    prefix: "api"
+
   define_resource "ingresses",
     singular_name: "ingress",
     group: "networking.k8s.io",
