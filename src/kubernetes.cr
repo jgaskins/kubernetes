@@ -11,7 +11,11 @@ module Kubernetes
   VERSION = "0.1.0"
 
   class Client
-    def initialize(@server : URI, @token : String, @certificate_file : String)
+    def initialize(
+      @server : URI = URI.parse("https://#{ENV["KUBERNETES_SERVICE_HOST"]}:#{ENV["KUBERNETES_SERVICE_PORT"]}"),
+      @token : String = File.read("/var/run/secrets/kubernetes.io/serviceaccount/token"),
+      @certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+    )
       tls = OpenSSL::SSL::Context::Client.new
       tls.ca_certificates = @certificate_file
       @headers = HTTP::Headers{"Authorization" => "Bearer #{token}"}
