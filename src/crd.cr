@@ -110,7 +110,7 @@ module Kubernetes
                   def to_crystal
                     String.build do |str|
                       @mapping.each do |name, spec|
-                        str << "  getter #{name} : #{spec.to_crystal(name)}\n"
+                        str << "  getter #{name.underscore} : #{spec.to_crystal(name)}\n"
                         if spec.type == "object"
                           str << <<-CRYSTAL
                             struct #{name.camelcase}
