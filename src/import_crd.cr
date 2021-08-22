@@ -2,17 +2,19 @@ require "yaml"
 require "uuid/yaml"
 require "./serializable"
 
+require "./crd"
+
 begin
-  crd = CRD.from_yaml(File.read(ARGV[0]))
+  crd = Kubernetes::CRD.from_yaml(File.read(ARGV[0]))
 
   version = crd.spec.versions.find { |v| v.storage }.not_nil!
   properties = version.schema.open_api_v3_schema.properties.spec.properties
 
-  puts <<-CRYSTAL
+  code = <<-CRYSTAL
   struct #{crd.spec.names.kind}
     include Kubernetes::Serializable
 
-  #{properties.map {|key, spec| "  field #{key.underscore} : #{type_for spec}\n" }.join}
+    #{properties.to_crystal}
   end
 
   Kubernetes.define_resource(
@@ -24,73 +26,12 @@ begin
     singular_name: #{crd.spec.names.singular.inspect},
   )
   CRYSTAL
+
+  puts code
 rescue ex
   STDERR.puts ex
   STDERR.puts ex.pretty_inspect
   exit 1
-end
-
-struct CRD
-  include Kubernetes::Serializable
-
-  field api_version : String
-  field kind : String
-  # field metadata : Kubernetes::Metadata
-  field spec : Spec
-
-  struct Spec
-    include Kubernetes::Serializable
-
-    field group : String
-    field versions : Array(Version)
-    field scope : String
-    field names : Names
-
-    struct Names
-      include Kubernetes::Serializable
-
-      field plural : String
-      field singular : String
-      field kind : String
-      field short_names : Array(String)
-    end
-
-    struct Version
-      include Kubernetes::Serializable
-
-      field name : String
-      field served : Bool = false
-      field storage : Bool = false
-      field schema : Schema
-
-      struct Schema
-        include Kubernetes::Serializable
-
-        @[JSON::Field(key: "openAPIV3Schema")]
-        @[YAML::Field(key: "openAPIV3Schema")]
-        getter open_api_v3_schema : OpenAPIV3Schema
-
-        struct OpenAPIV3Schema
-          include Kubernetes::Serializable
-
-          field type : String
-          field properties : Properties
-
-          struct Properties
-            include Kubernetes::Serializable
-            field spec : Spec
-
-            struct Spec
-              include Kubernetes::Serializable
-
-              field type : String
-              field properties : Hash(String, Hash(String, String | Hash(String, String | Int64)))
-            end
-          end
-        end
-      end
-    end
-  end
 end
 
 def type_for(spec)

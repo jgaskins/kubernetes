@@ -3,6 +3,7 @@ require "json"
 require "yaml"
 require "uuid"
 require "uuid/json"
+require "uuid/yaml"
 require "db/pool"
 
 require "./serializable"
@@ -571,11 +572,21 @@ module Kubernetes
 
   # Define a new Kubernetes resource type. This can be used to specify your CRDs
   # to be able to manage your custom resources in Crystal code.
-  macro define_resource(name, group, type, version = "v1", prefix = "apis", list_type = nil, singular_name = nil)
+  macro define_resource(name, group, type, version = "v1", prefix = "apis", api_version = nil, kind = nil, list_type = nil, singular_name = nil)
+    {% api_version ||= "#{group}/#{version}" %}
+    {% if kind == nil %}
+      {% if type.resolve == ::Kubernetes::Resource %}
+        {% kind = type.type_vars.first %}
+      {% else %}
+        {% kind = type.stringify %}
+      {% end %}
+    {% end %}
     {% singular_name ||= name.gsub(/s$/, "").id %}
+    {% plural_method_name = name.gsub(/-/, "_") %}
+    {% singular_method_name = singular_name.gsub(/-/, "_") %}
 
     class ::Kubernetes::Client
-      def {{name.id}}(
+      def {{plural_method_name.id}}(
         namespace : String? = "default",
         # FIXME: Currently this is intended to be a string, but maybe we should
         # make it a Hash/NamedTuple?
@@ -586,17 +597,23 @@ module Kubernetes
         params["labelSelector"] = label_selector if label_selector
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}?#{params}"
         get path do |response|
-          # response.body_io.gets_to_end
-          # JSON.parse response.body_io
-          {% if list_type %}
-            {{list_type}}.from_json response.body_io
-          {% else %}
-            ::Kubernetes::List({{type}}).from_json response.body_io
-          {% end %}
+          case response.status
+          when .ok?
+            # JSON.parse response.body_io
+            {% if list_type %}
+              {{list_type}}.from_json response.body_io
+            {% else %}
+              ::Kubernetes::List({{type}}).from_json response.body_io
+            {% end %}
+          when .not_found?
+            raise ClientError.new "API resource \"{{name.id}}\" not found. Did you apply the CRD to the Kubernetes control plane?"
+          else
+            raise Error.new("Unknown Kubernetes API response: #{response.status} - please report to https://github.com/jgaskins/kubernetes/issues")
+          end
         end
       end
 
-      def {{singular_name.id}}(name : String, namespace : String = "default")
+      def {{singular_method_name.id}}(name : String, namespace : String = "default")
         if namespace
           namespace = "/namespaces/#{namespace}"
         end
@@ -612,7 +629,7 @@ module Kubernetes
         end
       end
 
-      def apply_{{singular_name.id}}(resource : {{type}}, spec, name : String = resource.metadata.name, namespace : String = resource.metadata.namespace, force : Bool = false)
+      def apply_{{singular_method_name.id}}(resource : {{type}}, spec, name : String = resource.metadata.name, namespace : String = resource.metadata.namespace, force : Bool = false)
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}/namespaces/#{namespace}/{{name.id}}/#{name}?fieldManager=k8s-cr&force=#{force}"
         metadata = {
           name: name,
@@ -636,7 +653,7 @@ module Kubernetes
         end
       end
 
-      def apply_{{singular_name.id}}(api_version : String, kind : String, metadata : NamedTuple, spec, force : Bool = false)
+      def apply_{{singular_method_name.id}}(metadata : NamedTuple, spec, api_version : String, kind : String, force : Bool = false)
         name = metadata[:name]
         namespace = metadata[:namespace]
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}/namespaces/#{namespace}/{{name.id}}/#{name}?fieldManager=k8s-cr&force=#{force}"
@@ -656,13 +673,13 @@ module Kubernetes
         end
       end
 
-      def delete_{{singular_name.id}}(name : String, namespace : String = "default")
+      def delete_{{singular_method_name.id}}(name : String, namespace : String = "default")
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}/namespaces/#{namespace}/{{name.id}}/#{name}"
         response = delete path
         JSON.parse response.body
       end
 
-      def watch_{{name.id}}(resource_version = "0")
+      def watch_{{plural_method_name.id}}(resource_version = "0")
         get "/{{prefix.id}}/{{group.id}}/{{version.id}}/{{name.id}}?resourceVersion=#{resource_version}&watch=1" do |response|
           loop do
             yield Watch({{type}}).from_json IO::Delimited.new(response.body_io, "\n")
@@ -670,10 +687,18 @@ module Kubernetes
         end
       end
     end
+    {% debug if flag? :debug_define_resource %}
   end
 
   macro import_crd(yaml_file)
     {{ run("./import_crd", yaml_file) }}
+    {% debug if flag? :debug_import_crd %}
+  end
+
+  class Error < ::Exception
+  end
+
+  class ClientError < Error
   end
 
   define_resource "deployments",
