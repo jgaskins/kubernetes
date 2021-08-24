@@ -16,6 +16,7 @@ module Kubernetes
       @server : URI = URI.parse("https://#{ENV["KUBERNETES_SERVICE_HOST"]}:#{ENV["KUBERNETES_SERVICE_PORT"]}"),
       @token : String = File.read("/var/run/secrets/kubernetes.io/serviceaccount/token"),
       @certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+      @log = Log.for("kubernetes.client"),
     )
       tls = OpenSSL::SSL::Context::Client.new
       tls.ca_certificates = @certificate_file
@@ -680,10 +681,20 @@ module Kubernetes
       end
 
       def watch_{{plural_method_name.id}}(resource_version = "0")
-        get "/{{prefix.id}}/{{group.id}}/{{version.id}}/{{name.id}}?resourceVersion=#{resource_version}&watch=1" do |response|
-          loop do
-            yield Watch({{type}}).from_json IO::Delimited.new(response.body_io, "\n")
+        loop do
+          return get "/{{prefix.id}}/{{group.id}}/{{version.id}}/{{name.id}}?resourceVersion=#{resource_version}&watch=1" do |response|
+            loop do
+              watch = Watch({{type}}).from_json IO::Delimited.new(response.body_io, "\n")
+
+              # If there's a JSON parsing failure and we loop back around, we'll
+              # use this resource version to pick up where we left off.
+              resource_version = watch.object.metadata.resource_version
+
+              yield watch
+            end
           end
+        rescue ex : JSON::ParseException
+          @log.warn { "Cannot parse watched object: #{ex} (server may have closed the HTTP connection)" }
         end
       end
     end
