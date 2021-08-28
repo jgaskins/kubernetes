@@ -16,7 +16,7 @@ module Kubernetes
       @server : URI = URI.parse("https://#{ENV["KUBERNETES_SERVICE_HOST"]}:#{ENV["KUBERNETES_SERVICE_PORT"]}"),
       @token : String = File.read("/var/run/secrets/kubernetes.io/serviceaccount/token"),
       @certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-      @log = Log.for("kubernetes.client"),
+      @log = Log.for("kubernetes.client")
     )
       tls = OpenSSL::SSL::Context::Client.new
       tls.ca_certificates = @certificate_file
@@ -218,7 +218,6 @@ module Kubernetes
   struct StatefulSet
     include Serializable
 
-
     field replicas : Int32
     field template : JSON::Any
     field selector : JSON::Any
@@ -240,7 +239,7 @@ module Kubernetes
 
       field observed_generation : Int32 = -1
       field replicas : Int32 = -1
-      field updated_replicas : Int32 =  -1
+      field updated_replicas : Int32 = -1
       field ready_replicas : Int32 = -1
       field available_replicas : Int32 = -1
       field conditions : Array(Condition) = [] of Condition
@@ -766,4 +765,3 @@ module Kubernetes
     type: Pod,
     prefix: "api"
 end
-
