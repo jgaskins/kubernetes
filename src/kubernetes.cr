@@ -739,11 +739,13 @@ module Kubernetes
 
   define_resource "statefulsets",
     group: "apps",
-    type: Resource(StatefulSet)
+    type: Resource(StatefulSet),
+    kind: "StatefulSet"
 
   define_resource "jobs",
     group: "batch",
-    type: Resource(JSON::Any) # TODO: Write Job struct
+    type: Resource(JSON::Any), # TODO: Write Job struct
+    kind: "Job"
 
   define_resource "services",
     group: "",
@@ -753,12 +755,14 @@ module Kubernetes
   define_resource "persistentvolumeclaims",
     group: "",
     type: Resource(JSON::Any), # TODO: Write PVC struct,
-    prefix: "api"
+    prefix: "api",
+    kind: "PersistentVolumeClaim"
 
   define_resource "ingresses",
     singular_name: "ingress",
     group: "networking.k8s.io",
-    type: Resource(Networking::Ingress)
+    type: Resource(Networking::Ingress),
+    kind: "Ingress"
 
   define_resource "pods",
     group: "",
