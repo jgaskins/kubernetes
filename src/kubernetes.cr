@@ -558,16 +558,19 @@ module Kubernetes
     field metadata : JSON::Any
     field status : String
     field message : String
-    field reason : String
-    field details : Details
+    field reason : String = ""
+    field details : Details = Details.new
     field code : Int32
 
     struct Details
       include Serializable
 
-      field name : String
-      field group : String
-      field kind : String
+      field name : String = ""
+      field group : String = ""
+      field kind : String = ""
+
+      def initialize
+      end
     end
   end
 
