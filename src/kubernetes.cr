@@ -124,7 +124,7 @@ module Kubernetes
         field name : String = ""
         field port : Int32
         field protocol : String
-        field target_port : Int32?
+        field target_port : Int32 | String | Nil
       end
     end
   end
