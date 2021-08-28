@@ -657,7 +657,13 @@ module Kubernetes
         end
       end
 
-      def apply_{{singular_method_name.id}}(metadata : NamedTuple, spec, api_version : String, kind : String, force : Bool = false)
+      def apply_{{singular_method_name.id}}(
+        metadata : NamedTuple,
+        spec,
+        api_version : String = "{{group.id}}/{{version.id}}",
+        kind : String = "{{kind.id}}",
+        force : Bool = false,
+      )
         name = metadata[:name]
         namespace = metadata[:namespace]
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}/namespaces/#{namespace}/{{name.id}}/#{name}?fieldManager=k8s-cr&force=#{force}"
@@ -683,9 +689,22 @@ module Kubernetes
         JSON.parse response.body
       end
 
-      def watch_{{plural_method_name.id}}(resource_version = "0")
+      def watch_{{plural_method_name.id}}(resource_version = "0", timeout : Time::Span = 30.minutes, namespace : String? = nil)
+        if namespace
+          namespace = "/namespaces/#{namespace}"
+        end
         loop do
-          return get "/{{prefix.id}}/{{group.id}}/{{version.id}}/{{name.id}}?resourceVersion=#{resource_version}&watch=1" do |response|
+          return get "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}?resourceVersion=#{resource_version}&watch=1&timeoutSeconds=#{timeout.total_seconds.to_i}" do |response|
+            unless response.success?
+              if response.headers["Content-Type"]?.try(&.includes?("application/json"))
+                message = JSON.parse(response.body_io)
+              else
+                message = response.body_io.gets_to_end
+              end
+
+              raise ClientError.new("#{response.status}: #{message}")
+            end
+
             loop do
               watch = Watch({{type}}).from_json IO::Delimited.new(response.body_io, "\n")
 
