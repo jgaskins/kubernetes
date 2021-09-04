@@ -110,6 +110,8 @@ module Kubernetes
                   def to_crystal
                     String.build do |str|
                       @mapping.each do |name, spec|
+                        str << "  @[YAML::Field(key: #{name.inspect})]\n"
+                        str << "  @[JSON::Field(key: #{name.inspect})]\n"
                         str << "  getter #{name.underscore} : #{spec.to_crystal(name)}\n"
                         if spec.type == "object"
                           str << <<-CRYSTAL
