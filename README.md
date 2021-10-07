@@ -26,6 +26,14 @@ k8s = Kubernetes::Client.new(
 )
 ```
 
+When you're running this inside a Kubernetes cluster, it will automatically find the Kubernetes API server, token, and cert file, so you can simplify even more:
+
+```crystal
+require "kubernetes"
+
+k8s = Kubernetes::Client.new
+```
+
 Then you can fetch information about your deployments or pods:
 
 ```crystal
