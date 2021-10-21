@@ -691,7 +691,7 @@ module Kubernetes
         JSON.parse response.body
       end
 
-      def watch_{{plural_method_name.id}}(resource_version = "0", timeout : Time::Span = 30.minutes, namespace : String? = nil)
+      def watch_{{plural_method_name.id}}(resource_version = "0", timeout : Time::Span = 1.hour, namespace : String? = nil)
         if namespace
           namespace = "/namespaces/#{namespace}"
         end
