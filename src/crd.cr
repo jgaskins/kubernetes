@@ -57,8 +57,18 @@ module Kubernetes
                 field type : String
                 field items : Spec?
                 field properties : Properties = Properties.new
+                field nullable : Bool = false
+                field required : Array(String) = %w[]
 
                 def to_crystal(name : String)
+                  if nullable
+                    "#{crystal_type(name)}?"
+                  else
+                    crystal_type(name)
+                  end
+                end
+
+                private def crystal_type(name : String)
                   case type
                   when "integer"
                     "Int64"
