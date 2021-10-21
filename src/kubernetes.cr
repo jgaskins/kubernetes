@@ -399,6 +399,18 @@ module Kubernetes
     end
   end
 
+  struct Job
+    include Serializable
+
+    field backoff_limit : Int32?
+    field completions : Int32?
+    field parallelism : Int32?
+    # TODO: Should Selector be extracted to a higher layer?
+    field selector : Deployment::Spec::Selector
+    # TODO: ditto?
+    field template : Deployment::Spec::Template
+  end
+
   struct Pod
     include Serializable
 
@@ -751,7 +763,7 @@ module Kubernetes
 
   define_resource "jobs",
     group: "batch",
-    type: Resource(JSON::Any), # TODO: Write Job struct
+    type: Resource(Job),
     kind: "Job"
 
   define_resource "services",
