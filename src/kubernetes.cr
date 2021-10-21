@@ -770,7 +770,7 @@ module Kubernetes
 
   define_resource "jobs",
     group: "batch",
-    type: Resource(Job),
+    type: Resource(JSON::Any),
     kind: "Job"
 
   define_resource "services",
