@@ -685,6 +685,10 @@ module Kubernetes
         end
       end
 
+      def delete_{{singular_method_name.id}}(resource : {{type}})
+        delete_{{singular_method_name.id}} name: resource.metadata.name, namespace: resource.metadata.namespace
+      end
+
       def delete_{{singular_method_name.id}}(name : String, namespace : String = "default")
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}/namespaces/#{namespace}/{{name.id}}/#{name}"
         response = delete path
