@@ -294,9 +294,10 @@ module Kubernetes
       struct Template
         include Serializable
 
-        field metadata : Metadata
-        field spec : Spec
+        field metadata : Metadata?
+        field spec : Spec?
 
+        # https://github.com/kubernetes/kubernetes/blob/2dede1d4d453413da6fd852e00fc7d4c8784d2a8/staging/src/k8s.io/client-go/applyconfigurations/core/v1/podspec.go#L27-L63
         struct Spec
           include Serializable
 
@@ -399,16 +400,22 @@ module Kubernetes
     end
   end
 
+  # https://github.com/kubernetes/kubernetes/blob/2dede1d4d453413da6fd852e00fc7d4c8784d2a8/staging/src/k8s.io/client-go/applyconfigurations/batch/v1/jobspec.go#L29-L40
   struct Job
     include Serializable
 
-    field backoff_limit : Int32?
-    field completions : Int32?
     field parallelism : Int32?
+    field completions : Int32?
+    field active_deadline_seconds : Int64?
+    field backoff_limit : Int32?
     # TODO: Should Selector be extracted to a higher layer?
-    field selector : Deployment::Spec::Selector
+    field selector : Deployment::Spec::Selector?
+    field? manual_selector : Bool?
     # TODO: ditto?
-    field template : Deployment::Spec::Template
+    field template : Deployment::Spec::Template?
+    field ttl_seconds_after_finished : Int32?
+    field completion_mode : String?
+    field? suspend : Bool?
   end
 
   struct Pod
