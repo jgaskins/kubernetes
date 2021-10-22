@@ -72,7 +72,7 @@ module Kubernetes
     end
   end
 
-  struct Resource(T)
+  class Resource(T)
     include Serializable
 
     field api_version : String = ""
@@ -85,7 +85,7 @@ module Kubernetes
     end
   end
 
-  struct Metadata
+  class Metadata
     include Serializable
 
     field name : String = ""
@@ -99,7 +99,7 @@ module Kubernetes
     end
   end
 
-  struct Service
+  class Service
     include Serializable
 
     field api_version : String = "v1"
@@ -107,7 +107,7 @@ module Kubernetes
     field metadata : Metadata
     field spec : Spec
 
-    struct Spec
+    class Spec
       include Serializable
 
       field ports : Array(Port) = [] of Port
@@ -118,7 +118,7 @@ module Kubernetes
       def initialize(@ports : Array(Port))
       end
 
-      struct Port
+      class Port
         include Serializable
 
         field name : String = ""
@@ -129,24 +129,24 @@ module Kubernetes
     end
   end
 
-  struct Pod
+  class Pod
     include Serializable
 
     field spec : Spec
 
-    struct Spec
+    class Spec
       include Serializable
     end
   end
 
-  struct APIGroup
+  class APIGroup
     include Serializable
 
     field name : String
     field versions : Array(Version)
     field preferred_version : Version
 
-    struct List
+    class List
       include Serializable
 
       field api_version : String
@@ -154,7 +154,7 @@ module Kubernetes
       field groups : Array(APIGroup)
     end
 
-    struct Version
+    class Version
       include Serializable
 
       field group_version : String
@@ -162,7 +162,7 @@ module Kubernetes
     end
   end
 
-  struct APIResource
+  class APIResource
     include Serializable
 
     field name : String
@@ -173,7 +173,7 @@ module Kubernetes
     field short_names : Array(String) = %w[]
     field storage_version_hash : String = ""
 
-    struct List
+    class List
       include Serializable
 
       field api_version : String?
@@ -182,7 +182,7 @@ module Kubernetes
     end
   end
 
-  struct Event
+  class Event
     include Serializable
 
     field metadata : Metadata
@@ -192,7 +192,7 @@ module Kubernetes
     field note : String
     field type : String
 
-    struct Regarding
+    class Regarding
       include Serializable
 
       field kind : String
@@ -204,7 +204,7 @@ module Kubernetes
       field field_path : String?
     end
 
-    struct Metadata
+    class Metadata
       include Serializable
 
       field name : String
@@ -215,7 +215,7 @@ module Kubernetes
     end
   end
 
-  struct StatefulSet
+  class StatefulSet
     include Serializable
 
     field replicas : Int32
@@ -224,7 +224,7 @@ module Kubernetes
     field volume_claim_templates : JSON::Any
   end
 
-  struct Deployment
+  class Deployment
     include Serializable
 
     field metadata : Metadata
@@ -234,7 +234,7 @@ module Kubernetes
     def initialize(*, @metadata, @spec, @status = nil)
     end
 
-    struct Status
+    class Status
       include Serializable
 
       field observed_generation : Int32 = -1
@@ -244,7 +244,7 @@ module Kubernetes
       field available_replicas : Int32 = -1
       field conditions : Array(Condition) = [] of Condition
 
-      struct Condition
+      class Condition
         include Serializable
 
         field type : String
@@ -256,7 +256,7 @@ module Kubernetes
       end
     end
 
-    struct Spec
+    class Spec
       include Serializable
 
       field replicas : Int32
@@ -277,13 +277,13 @@ module Kubernetes
       )
       end
 
-      struct Strategy
+      class Strategy
         include Serializable
 
         field type : String
         field rolling_update : RollingUpdate?
 
-        struct RollingUpdate
+        class RollingUpdate
           include Serializable
 
           field max_unavailable : String | Int32
@@ -291,14 +291,14 @@ module Kubernetes
         end
       end
 
-      struct Template
+      class Template
         include Serializable
 
         field metadata : Metadata?
         field spec : Spec?
 
         # https://github.com/kubernetes/kubernetes/blob/2dede1d4d453413da6fd852e00fc7d4c8784d2a8/staging/src/k8s.io/client-go/applyconfigurations/core/v1/podspec.go#L27-L63
-        struct Spec
+        class Spec
           include Serializable
 
           field containers : Array(Container)
@@ -310,7 +310,7 @@ module Kubernetes
           field security_context : JSON::Any
           field scheduler_name : String
 
-          struct Container
+          class Container
             include Serializable
 
             field name : String
@@ -323,7 +323,7 @@ module Kubernetes
             field termination_message_policy : String?
             field image_pull_policy : String
 
-            struct Resources
+            class Resources
               include Serializable
 
               field requests : Resource?
@@ -332,7 +332,7 @@ module Kubernetes
               def initialize
               end
 
-              struct Resource
+              class Resource
                 include Serializable
 
                 field cpu : String?
@@ -340,20 +340,20 @@ module Kubernetes
               end
             end
 
-            struct Env
+            class Env
               include Serializable
 
               field name : String
               field value : String = ""
               field value_from : ValueFrom?
 
-              struct ValueFrom
+              class ValueFrom
                 include Serializable
 
                 field field_ref : FieldRef?
               end
 
-              struct FieldRef
+              class FieldRef
                 include Serializable
 
                 field api_version : String = "v1"
@@ -361,7 +361,7 @@ module Kubernetes
               end
             end
 
-            struct Port
+            class Port
               include Serializable
 
               field container_port : Int32?
@@ -370,7 +370,7 @@ module Kubernetes
           end
         end
 
-        struct Metadata
+        class Metadata
           include Serializable
 
           field creation_timestamp : Time?
@@ -379,14 +379,14 @@ module Kubernetes
         end
       end
 
-      struct Selector
+      class Selector
         include Serializable
 
         field match_labels : Hash(String, String) = {} of String => String
       end
     end
 
-    struct Metadata
+    class Metadata
       include Serializable
 
       field name : String = ""
@@ -401,7 +401,7 @@ module Kubernetes
   end
 
   # https://github.com/kubernetes/kubernetes/blob/2dede1d4d453413da6fd852e00fc7d4c8784d2a8/staging/src/k8s.io/client-go/applyconfigurations/batch/v1/jobspec.go#L29-L40
-  struct Job
+  class Job
     include Serializable
 
     field parallelism : Int32?
@@ -418,14 +418,14 @@ module Kubernetes
     field? suspend : Bool?
   end
 
-  struct Pod
+  class Pod
     include Serializable
 
     field metadata : Metadata
     field spec : Spec
     field status : JSON::Any
 
-    struct Spec
+    class Spec
       include Serializable
 
       alias Container = ::Kubernetes::Deployment::Spec::Template::Spec::Container
@@ -442,7 +442,7 @@ module Kubernetes
       field scheduler_name : String
       field tolerations : Array(Toleration)
 
-      struct Toleration
+      class Toleration
         include Serializable
 
         field key : String = ""
@@ -451,13 +451,13 @@ module Kubernetes
         field toleration_seconds : Int32 = 0
       end
 
-      struct Volume
+      class Volume
         include Serializable
 
         field name : String
         field projected : Template?
 
-        struct Template
+        class Template
           include Serializable
 
           field sources : Array(JSON::Any)
@@ -466,7 +466,7 @@ module Kubernetes
       end
     end
 
-    struct Metadata
+    class Metadata
       include Serializable
 
       field namespace : String
@@ -479,7 +479,7 @@ module Kubernetes
       field annotations : Hash(String, String) = {} of String => String
       field owner_references : Array(OwnerReference) = [] of OwnerReference
 
-      struct OwnerReference
+      class OwnerReference
         include Serializable
         field api_version : String = "apps/v1"
         field name : String
@@ -492,39 +492,39 @@ module Kubernetes
   end
 
   module Networking
-    struct Ingress
+    class Ingress
       include Serializable
 
       field rules : Array(Rule) = [] of Rule
 
-      struct Rule
+      class Rule
         include Serializable
 
         field host : String
         field http : HTTP
 
-        struct HTTP
+        class HTTP
           include Serializable
 
           field paths : Array(Path)
 
-          struct Path
+          class Path
             include Serializable
 
             field path : String
             field path_type : String
             field backend : Backend
 
-            struct Backend
+            class Backend
               include Serializable
 
-              struct Service
+              class Service
                 include Serializable
 
                 field name : String
                 field port : Port
 
-                struct Port
+                class Port
                   include Serializable
 
                   field number : Int32
@@ -537,7 +537,7 @@ module Kubernetes
     end
   end
 
-  struct List(T)
+  class List(T)
     include Serializable
     include Enumerable(T)
 
@@ -549,7 +549,7 @@ module Kubernetes
     delegate each, to: items
   end
 
-  struct Watch(T)
+  class Watch(T)
     include Serializable
 
     field type : String
@@ -568,7 +568,7 @@ module Kubernetes
     end
   end
 
-  struct Status
+  class Status
     include Serializable
 
     field kind : String
@@ -580,7 +580,7 @@ module Kubernetes
     field details : Details = Details.new
     field code : Int32
 
-    struct Details
+    class Details
       include Serializable
 
       field name : String = ""
