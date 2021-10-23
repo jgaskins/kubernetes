@@ -714,7 +714,6 @@ module Kubernetes
 
       def watch_{{plural_method_name.id}}(resource_version = "0", timeout : Time::Span = 1.hour, namespace : String? = nil, labels label_selector : String = "")
         params = URI::Params{
-          "resourceVersion" => resource_version,
           "watch" => "1",
           "timeoutSeconds" => timeout.total_seconds.to_i.to_s,
           "labelSelector" =>  label_selector,
@@ -723,6 +722,8 @@ module Kubernetes
           namespace = "/namespaces/#{namespace}"
         end
         loop do
+          params["resourceVersion"] = resource_version
+
           return get "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}?#{params}" do |response|
             unless response.success?
               if response.headers["Content-Type"]?.try(&.includes?("application/json"))
