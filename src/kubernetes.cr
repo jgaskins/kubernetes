@@ -636,14 +636,12 @@ module Kubernetes
       end
 
       def {{singular_method_name.id}}(name : String, namespace : String = "default", resource_version : String = "")
-        if namespace
-          namespace = "/namespaces/#{namespace}"
-        end
-
+        namespace = "/namespaces/#{namespace}"
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}/#{name}" 
         params = URI::Params{
           "resourceVersion" => resource_version,
         }
+
         get "#{path}?#{params}" do |response|
           case value = ({{type}} | Status).from_json response.body_io
           when Status
