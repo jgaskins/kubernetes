@@ -752,13 +752,16 @@ module Kubernetes
             end
 
             loop do
-              watch = Watch({{type}}).from_json IO::Delimited.new(response.body_io, "\n")
+              case watch = (Watch({{type}}) | JSON::Any).from_json IO::Delimited.new(response.body_io, "\n")
+              when Watch
+                # If there's a JSON parsing failure and we loop back around, we'll
+                # use this resource version to pick up where we left off.
+                resource_version = watch.object.metadata.resource_version
 
-              # If there's a JSON parsing failure and we loop back around, we'll
-              # use this resource version to pick up where we left off.
-              resource_version = watch.object.metadata.resource_version
-
-              yield watch
+                yield watch
+              else
+                @log.warn { "Unknown JSON entity: #{watch.inspect}" }
+              end
             end
           end
         rescue ex : JSON::ParseException
