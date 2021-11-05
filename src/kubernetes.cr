@@ -652,8 +652,19 @@ module Kubernetes
         end
       end
 
-      def apply_{{singular_method_name.id}}(resource : {{type}}, spec, name : String = resource.metadata.name, namespace : String = resource.metadata.namespace, force : Bool = false)
-        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}/namespaces/#{namespace}/{{name.id}}/#{name}?fieldManager=k8s-cr&force=#{force}"
+      def apply_{{singular_method_name.id}}(
+        resource : {{type}},
+        spec,
+        name : String = resource.metadata.name,
+        namespace : String = resource.metadata.namespace,
+        force : Bool = false,
+        field_manager : String? = nil,
+      )
+        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}/namespaces/#{namespace}/{{name.id}}/#{name}"
+        params = URI::Params{
+          "force" => force.to_s,
+          "fieldManager" => field_manager || "k8s-cr",
+        }
         metadata = {
           name: name,
           namespace: namespace,
@@ -662,7 +673,7 @@ module Kubernetes
           metadata = metadata.merge(resourceVersion: resource_version)
         end
 
-        response = patch path, {
+        response = patch "#{path}?#{params}", {
           apiVersion: resource.api_version,
           kind: resource.kind,
           metadata: metadata,
@@ -682,11 +693,16 @@ module Kubernetes
         api_version : String = "{{group.id}}/{{version.id}}",
         kind : String = "{{kind.id}}",
         force : Bool = false,
+        field_manager : String? = nil,
       )
         name = metadata[:name]
         namespace = metadata[:namespace]
-        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}/namespaces/#{namespace}/{{name.id}}/#{name}?fieldManager=k8s-cr&force=#{force}"
-        response = patch path, {
+        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}/namespaces/#{namespace}/{{name.id}}/#{name}"
+        params = URI::Params{
+          "force" => force.to_s,
+          "fieldManager" => field_manager || "k8s-cr",
+        }
+        response = patch "#{path}?#{params}", {
           apiVersion: api_version,
           kind: kind,
           metadata: metadata,
