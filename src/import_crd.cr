@@ -33,18 +33,3 @@ rescue ex
   STDERR.puts ex.pretty_inspect
   exit 1
 end
-
-def type_for(spec)
-  case spec["type"]
-  when "string" then %{String = ""}
-  when "integer" then %{Int64 = 0u64}
-  when "array"
-    case spec["items"].as(Hash)["type"]
-    when "string" then "Array(String) = %w[]"
-    when "integer" then "Array(Int64) = [] of Int64"
-    else "Array(JSON::Any) = [] of JSON::Any"
-    end
-  else
-    "JSON::Any = JSON::Any.new(nil)"
-  end
-end
