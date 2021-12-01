@@ -471,7 +471,7 @@ module Kubernetes
 
       field namespace : String
       field name : String
-      field generate_name : String
+      field generate_name : String?
       field uid : UUID
       field resource_version : String
       field creation_timestamp : Time
@@ -486,7 +486,7 @@ module Kubernetes
         field kind : String
         field uid : UUID
         field controller : Bool
-        field block_owner_deletion : Bool
+        field block_owner_deletion : Bool?
       end
     end
   end
