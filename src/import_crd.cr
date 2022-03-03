@@ -21,6 +21,7 @@ begin
     name: #{crd.spec.names.plural.inspect},
     group: #{crd.spec.group.inspect},
     type: Kubernetes::Resource(#{crd.spec.names.kind}),
+    kind: "#{crd.spec.names.kind}",
     version: #{version.name.inspect},
     prefix: "apis",
     singular_name: #{crd.spec.names.singular.inspect},
