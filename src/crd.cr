@@ -74,6 +74,8 @@ module Kubernetes
                     "Int64"
                   when "string"
                     "String"
+                  when "boolean"
+                    "Bool"
                   when "array"
                     if items = self.items
                       "Array(#{items.to_crystal(name)})"
