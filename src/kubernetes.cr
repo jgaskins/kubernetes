@@ -760,6 +760,8 @@ module Kubernetes
 
               yield watch
             end
+          ensure
+            response.body_io.skip_to_end
           end
         rescue ex : JSON::ParseException
           @log.warn { "Cannot parse watched object: #{ex} (server may have closed the HTTP connection)" }
