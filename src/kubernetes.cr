@@ -554,19 +554,19 @@ module Kubernetes
   struct Watch(T)
     include Serializable
 
-    field type : String
+    field type : Type
     field object : T
 
-    def added?
-      type == "ADDED"
+    delegate added?, modified?, deleted?, error?, to: type
+
+    def initialize(@type : Type, @object : T)
     end
 
-    def modified?
-      type == "MODIFIED"
-    end
-
-    def deleted?
-      type == "DELETED"
+    enum Type
+      ADDED
+      MODIFIED
+      DELETED
+      ERROR
     end
   end
 
