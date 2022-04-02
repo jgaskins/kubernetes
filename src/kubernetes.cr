@@ -44,6 +44,8 @@ module Kubernetes
         path = path.gsub(%r{//+}, '/')
         http.get path, headers: headers do |response|
           yield response
+        ensure
+          response.body_io.skip_to_end
         end
       end
     end
