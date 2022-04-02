@@ -575,7 +575,7 @@ module Kubernetes
 
     field kind : String
     field api_version : String
-    field metadata : JSON::Any
+    field metadata : Metadata
     field status : String
     field message : String
     field reason : String = ""
@@ -754,16 +754,27 @@ module Kubernetes
             end
 
             loop do
-              watch = Watch({{type}}).from_json IO::Delimited.new(response.body_io, "\n")
+              watch = Watch({{type}} | Status).from_json IO::Delimited.new(response.body_io, "\n")
 
               # If there's a JSON parsing failure and we loop back around, we'll
               # use this resource version to pick up where we left off.
               resource_version = watch.object.metadata.resource_version
 
+              case obj = watch.object
+              when Status
+                # If this is an error of some kind, we don't care we'll just run
+                # another request starting from the last resource version we've
+                # worked with.
+                next
+              else
+                watch = Watch.new(
+                  type: watch.type,
+                  object: obj,
+                )
+              end
+
               yield watch
             end
-          ensure
-            response.body_io.skip_to_end
           end
         rescue ex : JSON::ParseException
           @log.warn { "Cannot parse watched object: #{ex} (server may have closed the HTTP connection)" }
