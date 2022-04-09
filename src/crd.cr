@@ -57,6 +57,7 @@ module Kubernetes
                 field properties : Properties = Properties.new
                 field nullable : Bool = false
                 field required : Array(String) = %w[]
+                field? preserve_unknown_fields : Bool = false, key: "x-kubernetes-preserve-unknown-fields"
 
                 def to_crystal(name : String)
                   if nullable
@@ -81,7 +82,11 @@ module Kubernetes
                       raise "Array type specification for #{name.inspect} must contain an `items` key"
                     end
                   when "object"
-                    name.camelcase
+                    if preserve_unknown_fields?
+                      "JSON::Any"
+                    else
+                      name.camelcase
+                    end
                   else
                     raise "Unknown type: #{type.inspect}"
                   end
