@@ -37,9 +37,7 @@ module Kubernetes
         struct Schema
           include Serializable
 
-          @[JSON::Field(key: "openAPIV3Schema")]
-          @[YAML::Field(key: "openAPIV3Schema")]
-          getter open_api_v3_schema : OpenAPIV3Schema
+          field open_api_v3_schema : OpenAPIV3Schema, key: "openAPIV3Schema"
 
           struct OpenAPIV3Schema
             include Serializable

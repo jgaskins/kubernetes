@@ -8,17 +8,17 @@ module Kubernetes
       include YAML::Serializable
     end
 
-    macro field(type)
-      add_field {{type}}, getter
+    macro field(type, key = nil)
+      add_field {{type}}, getter, key: {{key}}
     end
 
-    macro field?(type)
-      add_field {{type}}, getter?
+    macro field?(type, key = nil)
+      add_field {{type}}, getter?, key: {{key}}
     end
 
-    macro add_field(type, getter_type)
-      @[JSON::Field(key: {{type.var.camelcase(lower: true)}})]
-      @[YAML::Field(key: {{type.var.camelcase(lower: true)}})]
+    macro add_field(type, getter_type, key = nil)
+      @[JSON::Field(key: {{key || type.var.camelcase(lower: true)}})]
+      @[YAML::Field(key: {{key || type.var.camelcase(lower: true)}})]
       {{getter_type}} {{type}}
     end
   end
