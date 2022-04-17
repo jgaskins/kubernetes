@@ -21,24 +21,32 @@ spec:
           spec:
             type: object
             properties:
-              image:
-                type: string
+              image: { type: string }
               env:
                 type: array
                 items:
                   type: object
+                  properties: { name: { type: string }, value: { type: string } }
+              envFrom:
+                type: array
+                default: []
+                items:
+                  type: object
                   properties:
-                    name:
-                      type: string
-                    value:
-                      type: string
+                    secretRef:
+                      type: object
+                      nullable: true
+                      properties:
+                        name:
+                          type: string
+                      required:
+                        - name
               web:
                 type: object
                 properties:
                   command:
                     type: array
-                    items:
-                      type: string
+                    items: { type: string }
               worker:
                 type: object
                 properties:
@@ -66,28 +74,6 @@ spec:
   env:
     - name: RAILS_ENV
       value: production
-    - name: DATABASE_URL
-      value: postgres://postgres:password@postgresql.instance-noodle.svc.cluster.local/forem_production
-    - name: REDIS_URL
-      value: redis://:noodle@redis.instance-noodle.svc.cluster.local
-    - name: APP_PROTOCOL
-      value: http://
-    - name: APP_DOMAIN
-      value: zomglol.wtf
-    - name: LOG_LEVEL
-      value: debug
-    - name: FOREM_OWNER_SECRET
-      value: asdf
-    - name: SECRET_KEY_BASE
-      value: afcbeebfadbcfeabfcabefcbdfcbdfcbfdcbfdbcfabedfcabdfcbaedfcae
-    - name: WEB_CONCURRENCY
-      value: "0"
-    - name: RAILS_SERVE_STATIC_FILES
-      value: "true"
-    - name: RAILS_LOG_TO_STDOUT
-      value: "true"
-    - name: RAILS_MAX_THREADS
-      value: "16"
   web:
     command: ["bundle", "exec", "rails", "server"]
   worker:
@@ -118,5 +104,6 @@ describe Kubernetes::CRD do
     properties["web"].type.should eq "object"
     properties["web"].properties["command"].type.should eq "array"
     properties["web"].properties["command"].items.not_nil!.type.should eq "string"
+    properties["envFrom"].default.not_nil!.as_a.empty?.should eq true
   end
 end

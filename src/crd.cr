@@ -53,6 +53,7 @@ module Kubernetes
                 include Serializable
 
                 field type : String
+                field default : YAML::Any?
                 field items : Spec?
                 field properties : Properties = Properties.new
                 field nullable : Bool = false
@@ -77,7 +78,19 @@ module Kubernetes
                     "Bool"
                   when "array"
                     if items = self.items
-                      "Array(#{items.to_crystal(name)})"
+                      type_name = "Array(#{items.to_crystal(name)})"
+                      # Go doesn't emit empty arrays :-(
+                      if default_value = default
+                        if default_array = default_value.as_a?
+                          if default_array.empty?
+                            type_name = "#{type_name} = [] of #{items.to_crystal(name)}"
+                          end
+                        else
+                          raise "Default value for an array must be an array. Got: #{default_value.inspect}"
+                        end
+                      end
+
+                      type_name
                     else
                       raise "Array type specification for #{name.inspect} must contain an `items` key"
                     end
