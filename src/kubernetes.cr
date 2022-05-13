@@ -619,7 +619,7 @@ module Kubernetes
 
   # Define a new Kubernetes resource type. This can be used to specify your CRDs
   # to be able to manage your custom resources in Crystal code.
-  macro define_resource(name, group, type, version = "v1", prefix = "apis", api_version = nil, kind = nil, list_type = nil, singular_name = nil)
+  macro define_resource(name, group, type, version = "v1", prefix = "apis", api_version = nil, kind = nil, list_type = nil, singular_name = nil, cluster_wide = false)
     {% api_version ||= "#{group}/#{version}" %}
     {% if kind == nil %}
       {% if type.resolve == ::Kubernetes::Resource %}
@@ -681,11 +681,13 @@ module Kubernetes
         resource : {{type}},
         spec,
         name : String = resource.metadata.name,
-        namespace : String = resource.metadata.namespace,
+        {% unless cluster_wide %}
+        namespace : String? = resource.metadata.namespace,
+        {% end %}
         force : Bool = false,
         field_manager : String? = nil,
       )
-        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}/namespaces/#{namespace}/{{name.id}}/#{name}"
+        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}{{cluster_wide ? "".id : "/namespaces/\#{namespace}".id }}/{{name.id}}/#{name}"
         params = URI::Params{
           "force" => force.to_s,
           "fieldManager" => field_manager || "k8s-cr",
@@ -722,8 +724,10 @@ module Kubernetes
         field_manager : String? = nil,
       )
         name = metadata[:name]
+        {% if cluster_wide == false %}
         namespace = metadata[:namespace]
-        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}/namespaces/#{namespace}/{{name.id}}/#{name}"
+        {% end %}
+        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}{% if cluster_wide == false %}/namespaces/#{namespace}{% end %}/{{name.id}}/#{name}"
         params = URI::Params{
           "force" => force.to_s,
           "fieldManager" => field_manager || "k8s-cr",
