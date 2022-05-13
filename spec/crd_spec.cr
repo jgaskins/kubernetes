@@ -54,6 +54,23 @@ spec:
                     type: array
                     items:
                       type: string
+
+              issuerRef:
+                type: object
+                properties:
+                  group:
+                    description: Group of the resource being referred to.
+                    type: string
+                  kind:
+                    description: Kind of the resource being referred to.
+                    type: string
+                  name:
+                    description: Name of the resource being referred to.
+                    type: string
+                required:
+                - name
+            required:
+            - image
   scope: Namespaced
   names:
     plural: rails-apps
@@ -81,7 +98,7 @@ spec:
 YAML
 
 describe Kubernetes::CRD do
-  crd = Kubernetes::CRD.from_yaml yaml
+  crd = Kubernetes::CRD.from_yaml crds_yaml
 
   it "idk lol" do
     spec = crd.spec

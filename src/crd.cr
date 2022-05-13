@@ -141,7 +141,7 @@ module Kubernetes
                         str << "  @[YAML::Field(key: #{name.inspect})]\n"
                         str << "  @[JSON::Field(key: #{name.inspect})]\n"
                         str << "  getter #{name.underscore} : #{spec.to_crystal(name)}\n"
-                        if spec.type == "object"
+                        if spec.type == "object" && !spec.preserve_unknown_fields?
                           str << <<-CRYSTAL
                             struct #{name.camelcase}
                               include ::Kubernetes::Serializable

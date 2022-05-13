@@ -27,6 +27,10 @@ module Kubernetes
       end
     end
 
+    def close : Nil
+      @http_pool.close
+    end
+
     def apis
       get("/apis") do |response|
         APIGroup::List.from_json response.body_io
@@ -90,15 +94,34 @@ module Kubernetes
   struct Metadata
     include Serializable
 
+    DEFAULT_TIME = Time.new(seconds: 0, nanoseconds: 0, location: Time::Location::UTC)
+
     field name : String = ""
     field namespace : String = ""
     field labels : Hash(String, String) = {} of String => String
     field annotations : Hash(String, String) = {} of String => String
     field resource_version : String = ""
+    field generate_name : String = ""
+    field generation : Int64 = 0i64
+    field creation_timestamp : Time = DEFAULT_TIME
+    field deletion_timestamp : Time = DEFAULT_TIME
+    field owner_references : Array(OwnerReferenceApplyConfiguration) { [] of OwnerReferenceApplyConfiguration }
+    field finalizers : Array(String) { %w[] }
     field uid : UUID = UUID.empty
 
     def initialize(@name, @namespace = nil, @labels = {} of String => String, @annotations = {} of String => String)
     end
+  end
+
+  struct OwnerReferenceApplyConfiguration
+    include Serializable
+
+    field api_version : String?
+    field kind : String?
+    field name : String?
+    field uid : UUID?
+    field controller : Bool = false
+    field block_owner_deletion : Bool?
   end
 
   struct Service
@@ -692,6 +715,7 @@ module Kubernetes
       def apply_{{singular_method_name.id}}(
         metadata : NamedTuple,
         spec,
+        status = nil,
         api_version : String = "{{group.id}}/{{version.id}}",
         kind : String = "{{kind.id}}",
         force : Bool = false,
@@ -724,10 +748,9 @@ module Kubernetes
         delete_{{singular_method_name.id}} name: resource.metadata.name, namespace: resource.metadata.namespace
       end
 
-      def delete_{{singular_method_name.id}}(name : String, namespace : String = "default")
-        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}/namespaces/#{namespace}/{{name.id}}/#{name}"
+      def delete_{{singular_method_name.id}}(name : String{% if cluster_wide == false %}, namespace : String = "default"{% end %})
+        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}{% if cluster_wide == false %}/namespaces/#{namespace}{% end %}/{{name.id}}/#{name}"
         response = delete path
-        JSON.parse response.body
       end
 
       def watch_{{plural_method_name.id}}(resource_version = "0", timeout : Time::Span = 1.hour, namespace : String? = nil, labels label_selector : String = "")
