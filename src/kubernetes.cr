@@ -705,7 +705,6 @@ module Kubernetes
           kind: resource.kind,
           metadata: metadata,
           spec: spec,
-          status: status,
         }
 
         if body = response.body
@@ -738,6 +737,7 @@ module Kubernetes
           kind: kind,
           metadata: metadata,
           spec: spec,
+          status: status,
         }
 
         if body = response.body
