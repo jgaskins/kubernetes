@@ -704,7 +704,8 @@ module Kubernetes
           apiVersion: resource.api_version,
           kind: resource.kind,
           metadata: metadata,
-          spec: spec
+          spec: spec,
+          status: status,
         }
 
         if body = response.body
