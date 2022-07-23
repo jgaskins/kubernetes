@@ -687,7 +687,7 @@ module Kubernetes
         force : Bool = false,
         field_manager : String? = nil,
       )
-        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}{{cluster_wide ? "".id : "/namespaces/\#{namespace}".id }}/{{name.id}}/#{name}"
+        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}{{cluster_wide ? "".id : "/namespaces/\#{namespace}".id}}/{{name.id}}/#{name}"
         params = URI::Params{
           "force" => force.to_s,
           "fieldManager" => field_manager || "k8s-cr",
