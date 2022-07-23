@@ -716,12 +716,11 @@ module Kubernetes
 
       def apply_{{singular_method_name.id}}(
         metadata : NamedTuple,
-        spec,
-        status = nil,
         api_version : String = "{{group.id}}/{{version.id}}",
         kind : String = "{{kind.id}}",
         force : Bool = false,
         field_manager : String? = nil,
+        **kwargs,
       )
         name = metadata[:name]
         {% if cluster_wide == false %}
@@ -736,9 +735,7 @@ module Kubernetes
           apiVersion: api_version,
           kind: kind,
           metadata: metadata,
-          spec: spec,
-          status: status,
-        }
+        }.merge(kwargs)
 
         if body = response.body
           # {{type}}.from_json response.body
