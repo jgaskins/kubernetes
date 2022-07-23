@@ -61,6 +61,13 @@ module Kubernetes
       end
     end
 
+    def raw_patch(path : String, body, headers = @headers.dup)
+      @http_pool.checkout do |http|
+        path = path.gsub(%r{//+}, '/')
+        http.patch path, headers: headers, body: body
+      end
+    end
+
     def patch(path : String, body, headers = @headers.dup)
       headers["Content-Type"] = "application/apply-patch+yaml"
 
@@ -740,6 +747,19 @@ module Kubernetes
         if body = response.body
           # {{type}}.from_json response.body
           # JSON.parse body
+          ({{type}} | Status).from_json body
+        else
+          raise "Missing response body"
+        end
+      end
+
+      def patch_{{singular_method_name.id}}(name : String, {% if cluster_wide == false %}namespace, {% end %}**kwargs)
+        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}{% if cluster_wide == false %}/namespaces/#{namespace}{% end %}/{{name.id}}/#{name}"
+        headers = @headers.dup
+        headers["Content-Type"] = "application/merge-patch+json"
+
+        response = raw_patch path, kwargs.to_json, headers: headers
+        if body = response.body
           ({{type}} | Status).from_json body
         else
           raise "Missing response body"
