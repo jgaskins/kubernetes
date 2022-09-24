@@ -821,6 +821,7 @@ module Kubernetes
               yield watch
             end
           end
+        rescue ex : IO::EOFError # Start watching some more
         rescue ex : JSON::ParseException
           @log.warn { "Cannot parse watched object: #{ex} (server may have closed the HTTP connection)" }
         end
