@@ -773,6 +773,7 @@ module Kubernetes
       def delete_{{singular_method_name.id}}(name : String{% if cluster_wide == false %}, namespace : String = "default"{% end %})
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}{% if cluster_wide == false %}/namespaces/#{namespace}{% end %}/{{name.id}}/#{name}"
         response = delete path
+        JSON.parse response.body
       end
 
       def watch_{{plural_method_name.id}}(resource_version = "0", timeout : Time::Span = 1.hour, namespace : String? = nil, labels label_selector : String = "")
