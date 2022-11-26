@@ -20,10 +20,14 @@ module Kubernetes
     )
       tls = OpenSSL::SSL::Context::Client.new
       tls.ca_certificates = @certificate_file
-      @headers = HTTP::Headers{"Authorization" => "Bearer #{token}"}
 
+      authorization = "Bearer #{token}"
       @http_pool = DB::Pool(HTTP::Client).new do
-        HTTP::Client.new(server, tls: tls)
+        http = HTTP::Client.new(server, tls: tls)
+        http.before_request do |request|
+          request.headers["Authorization"] = authorization
+        end
+        http
       end
     end
 
@@ -43,7 +47,7 @@ module Kubernetes
       end
     end
 
-    def get(path : String, headers = @headers)
+    def get(path : String, headers = HTTP::Headers.new)
       @http_pool.checkout do |http|
         path = path.gsub(%r{//+}, '/')
         http.get path, headers: headers do |response|
@@ -54,21 +58,21 @@ module Kubernetes
       end
     end
 
-    def put(path : String, body, headers = @headers)
+    def put(path : String, body, headers = HTTP::Headers.new)
       @http_pool.checkout do |http|
         path = path.gsub(%r{//+}, '/')
         http.put path, headers: headers, body: body.to_json
       end
     end
 
-    def raw_patch(path : String, body, headers = @headers.dup)
+    def raw_patch(path : String, body, headers = HTTP::Headers.new)
       @http_pool.checkout do |http|
         path = path.gsub(%r{//+}, '/')
         http.patch path, headers: headers, body: body
       end
     end
 
-    def patch(path : String, body, headers = @headers.dup)
+    def patch(path : String, body, headers = HTTP::Headers.new)
       headers["Content-Type"] = "application/apply-patch+yaml"
 
       @http_pool.checkout do |http|
@@ -77,7 +81,7 @@ module Kubernetes
       end
     end
 
-    def delete(path : String, headers = @headers)
+    def delete(path : String, headers = HTTP::Headers.new)
       @http_pool.checkout do |http|
         path = path.gsub(%r{//+}, '/')
         http.delete path, headers: headers
@@ -755,8 +759,9 @@ module Kubernetes
 
       def patch_{{singular_method_name.id}}(name : String, {% if cluster_wide == false %}namespace, {% end %}**kwargs)
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}{% if cluster_wide == false %}/namespaces/#{namespace}{% end %}/{{name.id}}/#{name}"
-        headers = @headers.dup
-        headers["Content-Type"] = "application/merge-patch+json"
+        headers = HTTP::Headers{
+          "Content-Type" =>  "application/merge-patch+json",
+        }
 
         response = raw_patch path, kwargs.to_json, headers: headers
         if body = response.body
