@@ -55,13 +55,14 @@ module Kubernetes
                 field type : String
                 field default : YAML::Any?
                 field items : Spec?
-                field properties : Properties = Properties.new
-                field nullable : Bool = false
-                field required : Array(String) = %w[]
+                field properties : Properties { Properties.new }
+                field? nullable : Bool = false
+                field enum : Array(String)?
+                field required : Array(String) { %w[] }
                 field? preserve_unknown_fields : Bool = false, key: "x-kubernetes-preserve-unknown-fields"
 
                 def to_crystal(name : String)
-                  if nullable
+                  if nullable?
                     "#{crystal_type(name)}?"
                   else
                     crystal_type(name)
@@ -73,7 +74,11 @@ module Kubernetes
                   when "integer"
                     "Int64"
                   when "string"
-                    "String"
+                    if e = self.enum
+                      name.camelcase
+                    else
+                      "String"
+                    end
                   when "boolean"
                     "Bool"
                   when "array"
@@ -83,7 +88,7 @@ module Kubernetes
                       if default_value = default
                         if default_array = default_value.as_a?
                           if default_array.empty?
-                            type_name = "#{type_name} = [] of #{items.to_crystal(name)}"
+                            type_name = "#{type_name} { [] of #{items.to_crystal(name)} }"
                           end
                         else
                           raise "Default value for an array must be an array. Got: #{default_value.inspect}"
@@ -159,6 +164,12 @@ module Kubernetes
                             end
 
                           CRYSTAL
+                        elsif spec.type == "string" && (e = spec.enum)
+                          str.puts "enum #{name.camelcase}"
+                          e.each do |item|
+                            str.puts item.camelcase
+                          end
+                          str.puts "end"
                         end
                       end
                     end

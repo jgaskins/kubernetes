@@ -17,8 +17,8 @@ module Kubernetes
     end
 
     macro add_field(type, getter_type, key = nil, **args, &block)
-      @[JSON::Field(key: {{key || type.var.camelcase(lower: true)}}{% unless args.empty? %}{% for k,v in args %}, {{k}}: {{v}}{% end %}{% end %})]
-      @[YAML::Field(key: {{key || type.var.camelcase(lower: true)}}{% unless args.empty? %}{% for k,v in args %}, {{k}}: {{v}}{% end %}{% end %})]
+      @[JSON::Field(key: "{{(key || type.var.camelcase(lower: true)).id}}"{% unless args.empty? %}{% for k,v in args %}, {{k}}: {{v}}{% end %}{% end %})]
+      @[YAML::Field(key: "{{(key || type.var.camelcase(lower: true)).id}}"{% unless args.empty? %}{% for k,v in args %}, {{k}}: {{v}}{% end %}{% end %})]
       {{getter_type}} {{type}} {{block}}
       {% if flag? :debug_k8s_add_field %}
         {% debug %}
