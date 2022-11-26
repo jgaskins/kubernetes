@@ -992,6 +992,8 @@ module Kubernetes
             end
           end
         rescue ex : IO::Error
+          @log.warn { ex }
+          sleep 1 # Don't hammer the server
         rescue ex : JSON::ParseException
           @log.warn { "Cannot parse watched object: #{ex} (server may have closed the HTTP connection)" }
         end
