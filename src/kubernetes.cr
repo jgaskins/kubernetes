@@ -151,18 +151,20 @@ module Kubernetes
 
     field name : String = ""
     field namespace : String = ""
-    field labels : Hash(String, String) = {} of String => String
-    field annotations : Hash(String, String) = {} of String => String
-    field resource_version : String = ""
-    field generate_name : String = ""
-    field generation : Int64 = 0i64
-    field creation_timestamp : Time = DEFAULT_TIME
-    field deletion_timestamp : Time = DEFAULT_TIME
-    field owner_references : Array(OwnerReferenceApplyConfiguration) { [] of OwnerReferenceApplyConfiguration }
+    field labels : Hash(String, String) { {} of String => String }
+    field annotations : Hash(String, String) { {} of String => String }
+    field resource_version : String = "", ignore_serialize: true
+    field generate_name : String = "", ignore_serialize: true
+    field generation : Int64 = 0i64, ignore_serialize: true
+    field creation_timestamp : Time = DEFAULT_TIME, ignore_serialize: true
+    field deletion_timestamp : Time?, ignore_serialize: true
+    field owner_references : Array(OwnerReferenceApplyConfiguration), ignore_serialize: true do
+      [] of OwnerReferenceApplyConfiguration
+    end
     field finalizers : Array(String) { %w[] }
-    field uid : UUID = UUID.empty
+    field uid : UUID = UUID.empty, ignore_serialize: true
 
-    def initialize(@name, @namespace = nil, @labels = {} of String => String, @annotations = {} of String => String)
+    def initialize(@name, @namespace = "", @labels = {} of String => String, @annotations = {} of String => String)
     end
   end
 
@@ -184,26 +186,136 @@ module Kubernetes
     field kind : String = "Service"
     field metadata : Metadata
     field spec : Spec
+    field status : Status
 
     struct Spec
       include Serializable
 
+      field cluster_ip : String = "", key: "clusterIP"
+      field cluster_ips : Array(String), key: "clusterIPs" { %w[] }
+      field external_ips : Array(String), key: "externalIPs" { %w[] }
+      field external_name : String?
+      field external_traffic_policy : TrafficPolicy?
+      field health_check_node_port : Int32?
+      field internal_traffic_policy : TrafficPolicy?
+      field ip_families : Array(IPFamily) { [] of IPFamily }
+      field ip_family_policy : IPFamilyPolicy
+      field load_balancer_ip : String?, key: "loadBalancerIP"
+      field load_balancer_source_ranges : String?
       field ports : Array(Port) = [] of Port
-      field type : String = ""
-      field session_affinity : String = "None"
-      field external_name : String = ""
+      field publish_not_ready_addresses : Bool?
+      field selector : Hash(String, String)?
+      field session_affinity : SessionAffinity?
+      field session_affinity_config : SessionAffinityConfig?
+      field type : Type
 
-      def initialize(@ports : Array(Port))
+      def initialize(@ports : Array(Port), @type = :cluster_ip, @ip_family_policy = :single_stack)
       end
+    end
 
-      struct Port
+    enum Type
+      ClusterIP
+      ExternalName
+      NodePort
+      LoadBalancer
+    end
+
+    enum TrafficPolicy
+      Local
+      Cluster
+    end
+
+    enum IPFamily
+      IPv4
+      IPv6
+    end
+
+    enum IPFamilyPolicy
+      SingleStack
+      PreferDualStack
+      RequireDualStack
+    end
+
+    struct Status
+      include Serializable
+
+      field conditions : Array(Condition) { [] of Condition }
+      field load_balancer : LoadBalancer::Status?
+    end
+
+    module LoadBalancer
+      struct Status
         include Serializable
 
-        field name : String = ""
-        field port : Int32
-        field protocol : String
-        field target_port : Int32 | String | Nil
+        field ingress : Array(Ingress) { [] of Ingress }
       end
+
+      struct Ingress
+        include Serializable
+
+        field hostname : String = ""
+        field ip : String = ""
+        field ports : Array(PortStatus) { [] of PortStatus }
+      end
+
+      struct PortStatus
+        include Serializable
+
+        field error : String?
+        field port : Int32 = -1
+        field protocol : Port::Protocol
+      end
+    end
+
+    struct Condition
+      include Serializable
+
+      field last_transition_time : Time
+      field message : String = ""
+      field observed_generation : Int64
+      field reason : String = ""
+      field status : Status
+      field type : String
+
+      enum Status
+        True
+        False
+        Unknown
+      end
+    end
+
+    struct Port
+      include Serializable
+
+      field app_protocol : String?
+      field name : String = ""
+      field node_port : Int32?
+      field port : Int32
+      field protocol : Protocol
+      field target_port : Int32 | String | Nil
+
+      enum Protocol
+        TCP
+        UDP
+        STCP
+      end
+    end
+
+    enum SessionAffinity
+      None
+      ClientIP
+    end
+
+    struct SessionAffinityConfig
+      include Serializable
+
+      field client_ip : ClientIPConfig?
+    end
+
+    struct ClientIPConfig
+      include Serializable
+
+      field timeout_seconds : Int32
     end
   end
 
@@ -769,17 +881,26 @@ module Kubernetes
       end
 
       def apply_{{singular_method_name.id}}(
-        metadata : NamedTuple,
+        metadata : NamedTuple | Metadata,
         api_version : String = "{{group.id}}/{{version.id}}",
         kind : String = "{{kind.id}}",
         force : Bool = false,
         field_manager : String? = nil,
         **kwargs,
       )
-        name = metadata[:name]
-        {% if cluster_wide == false %}
-        namespace = metadata[:namespace]
-        {% end %}
+        case metadata
+        in NamedTuple
+          name = metadata[:name]
+          {% if cluster_wide == false %}
+            namespace = metadata[:namespace]
+          {% end %}
+        in Metadata
+          name = metadata.name
+          {% if cluster_wide == false %}
+            namespace = metadata.namespace
+          {% end %}
+        end
+
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}{% if cluster_wide == false %}/namespaces/#{namespace}{% end %}/{{name.id}}/#{name}"
         params = URI::Params{
           "force" => force.to_s,
