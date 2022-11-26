@@ -87,6 +87,48 @@ module Kubernetes
         http.delete path, headers: headers
       end
     end
+
+    private def make_label_selector_string(label_selector : String | Nil)
+      label_selector
+    end
+
+    private def make_label_selector_string(kwargs : NamedTuple)
+      make_label_selector_string(**kwargs)
+    end
+
+    private def make_label_selector_string(**kwargs : String)
+      size = 0
+      kwargs.each do |key, value|
+        size += key.to_s.bytesize + value.bytesize + 2 # ',' and '='
+      end
+
+      String.build size do |str|
+        kwargs.each_with_index 1 do |key, value, index|
+          key.to_s str
+          str << '=' << value
+          unless index == kwargs.size
+            str << ','
+          end
+        end
+      end
+    end
+
+    private def make_label_selector_string(labels : Hash(String, String))
+      size = 0
+      labels.each do |(key, value)|
+        size += key.bytesize + value.bytesize + 2 # ',' and '='
+      end
+
+      String.build size do |str|
+        labels.each_with_index 1 do |(key, value), index|
+          str << key << '=' << value
+
+          unless index == labels.size
+            str << ','
+          end
+        end
+      end
+    end
   end
 
   struct Resource(T)
@@ -650,6 +692,7 @@ module Kubernetes
         # make it a Hash/NamedTuple?
         label_selector = nil,
       )
+        label_selector = make_label_selector_string(label_selector)
         namespace &&= "/namespaces/#{namespace}"
         params = URI::Params.new
         params["labelSelector"] = label_selector if label_selector
