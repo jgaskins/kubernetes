@@ -1,0 +1,154 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: natsclusters.jgaskins.dev
+spec:
+  group: jgaskins.dev
+  versions:
+    - name: v1beta1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                version:
+                  type: string
+                  default: "2.9.8"
+                replicas:
+                  type: integer
+                  default: 3
+                jetstreamSize:
+                  type: string
+                  default: "1Gi"
+                imageName:
+                  type: string
+                  default: "nats"
+                imageTag:
+                  type: string
+                  nullable: true
+                leafnodes:
+                  type: object
+                  nullable: true
+                  properties:
+                    remotes:
+                      type: array
+                      default: []
+                      items:
+                        type: object
+                        properties:
+                          url:
+                            type: string
+                          credentials:
+                            type: string
+                        required: [url, credentials]
+                     
+
+  scope: Namespaced
+  names:
+    plural: natsclusters
+    singular: natscluster
+    kind: NATSCluster
+    shortNames:
+      - nats
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: natsstreams.jgaskins.dev
+spec:
+  group: jgaskins.dev
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - name
+          properties:
+            spec:
+              type: object
+              properties:
+                name:
+                  type: string
+                  nullable: false
+                description:
+                  type: string
+                  nullable: true
+                storage:
+                  type: string
+                  nullable: false
+                  default: file
+                  enum:
+                    - file
+                    - memory
+  scope: Namespaced
+  names:
+    plural: natsstreams
+    singular: natsstream
+    kind: NATSStream
+    shortNames:
+      - stream
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: natsconsumers.jgaskins.dev
+spec:
+  group: jgaskins.dev
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - stream_name
+          properties:
+            spec:
+              type: object
+              properties:
+                stream_name:
+                  type: string
+                  nullable: false
+                name:
+                  type: string
+                  nullable: false
+                config:
+                  type: object
+                  properties:
+                    durable_name:
+                      type: string
+                      nullable: true
+                    ack_policy:
+                      type: string
+                      default: explicit
+                      nullable: false
+                      enum:
+                        - none
+                        - all
+                        - explicit
+                    ack_wait:
+                      type: integer
+                      description: The number of nanoseconds to wait for an acknowledgement after delivery
+                      nullable: true
+                    deliver_policy:
+                      type: string
+                      default: all
+                      nullable: false
+                      # enum:
+                      #   - 
+  scope: Namespaced
+  names:
+    plural: natsconsumers
+    singular: natsconsumer
+    kind: NATSConsumer
+    shortNames:
+      - consumer
