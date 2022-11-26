@@ -702,8 +702,14 @@ module Kubernetes
             include Serializable
 
             field path : String
-            field path_type : String
+            field path_type : PathType
             field backend : Backend
+
+            enum PathType
+              ImplementationSpecific
+              Exact
+              Prefix
+            end
 
             struct Backend
               include Serializable
