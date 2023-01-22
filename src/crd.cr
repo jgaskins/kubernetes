@@ -101,7 +101,7 @@ module Kubernetes
                     end
                   when "object"
                     if preserve_unknown_fields?
-                      "JSON::Any"
+                      "Hash(String, JSON::Any)"
                     else
                       name.camelcase
                     end
