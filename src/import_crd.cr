@@ -5,7 +5,7 @@ require "./serializable"
 require "./crd"
 
 begin
-  File.read(ARGV[0]).split(/^---$/).each do |yaml|
+  File.read(ARGV[0]).split(/\n---\n/).each do |yaml|
     crd = Kubernetes::CRD.from_yaml(yaml)
 
     version = crd.spec.versions.find { |v| v.storage }.not_nil!
