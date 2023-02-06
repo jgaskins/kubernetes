@@ -1,0 +1,97 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: webhook-test
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: pod-mutating-webhook.jgaskins.dev
+  namespace: webhook-test
+  annotations:
+    cert-manager.io/inject-ca-from: webhook-test/pod-mutating-webhook
+webhooks:
+  - name: pod-mutating-webhook.jgaskins.dev
+    admissionReviewVersions: [v1]
+    rules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    # failurePolicy: Ignore
+    clientConfig:
+      service:
+        namespace: webhook-test
+        name: pod-mutating-webhook
+        path: /pods
+        port: 3000
+    sideEffects: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: webhook-test
+  name: pod-mutating-webhook
+spec:
+  selector:
+    app.kubernetes.io/name: pod-mutating-webhook
+  ports:
+  - port: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: webhook-test
+  name: pod-mutating-webhook
+spec:
+  selector:
+    matchLabels: &labels
+      app.kubernetes.io/name: pod-mutating-webhook
+  template:
+    metadata:
+      labels: *labels
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      containers:
+        - name: web
+          image: jgaskins/kubernetes-examples:mutating-webhooks
+          imagePullPolicy: Always
+          env:
+          - name: LOG_LEVEL
+            value: DEBUG
+          ports:
+            - protocol: TCP
+              name: http
+              containerPort: 3000
+          volumeMounts:
+            - name: tls
+              mountPath: /certs
+              readOnly: true
+      volumes:
+        - name: tls
+          secret:
+            secretName: pod-mutating-webhook-tls
+
+####### CERT STUFF ######
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned-issuer
+  namespace: webhook-test
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: pod-mutating-webhook
+  namespace: webhook-test
+spec:
+  secretName: pod-mutating-webhook-tls
+  dnsNames:
+  - pod-mutating-webhook.webhook-test.svc
+  issuerRef:
+    name: selfsigned-issuer
