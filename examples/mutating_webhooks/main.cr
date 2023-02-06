@@ -30,4 +30,3 @@ http.listen
 while app.handling_requests?
   sleep 1.second
 end
-
