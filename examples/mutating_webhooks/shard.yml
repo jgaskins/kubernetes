@@ -6,7 +6,7 @@ authors:
 
 targets:
   mutating_webhooks:
-    main: main.cr
+    main: src/main.cr
 
 dependencies:
   kubernetes:

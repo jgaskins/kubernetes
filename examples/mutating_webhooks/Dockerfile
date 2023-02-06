@@ -5,7 +5,7 @@ WORKDIR /app
 COPY shard.yml /app/
 RUN shards
 
-COPY *.cr /app/
+COPY src/ /app/src/
 RUN shards build mutating_webhooks --static --release
 
 FROM scratch
