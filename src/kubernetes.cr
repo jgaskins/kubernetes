@@ -941,6 +941,21 @@ module Kubernetes
         end
       end
 
+      def patch_{{singular_method_name.id}}_subresource(name : String, subresource : String{% if cluster_wide == false %}, namespace : String = "default"{% end %}, **args)
+        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}{% if cluster_wide == false %}/namespaces/#{namespace}{% end %}/{{name.id}}/#{name}/#{subresource}"
+        headers = HTTP::Headers{
+          "Content-Type" =>  "application/json",
+        }
+
+        response = raw_patch path, args.to_json, headers: headers
+        if body = response.body
+          # ({{type}} | Status).from_json body
+          JSON.parse body
+        else
+          raise "Missing response body"
+        end
+      end
+
       def delete_{{singular_method_name.id}}(resource : {{type}})
         delete_{{singular_method_name.id}} name: resource.metadata.name, namespace: resource.metadata.namespace
       end
