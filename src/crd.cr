@@ -13,9 +13,9 @@ module Kubernetes
       include Serializable
 
       field group : String
-      field versions : Array(Version)
-      field scope : String
       field names : Names
+      field scope : String
+      field versions : Array(Version)
 
       struct Names
         include Serializable
@@ -53,12 +53,13 @@ module Kubernetes
                 include Serializable
 
                 field type : String
+                field description : String?
                 field default : YAML::Any?
                 field items : Spec?
                 field properties : Properties { Properties.new }
                 field? nullable : Bool = false
                 field enum : Array(String)?
-                field required : Array(String) { %w[] }
+                field required : Array(String) { [] of String }
                 field? preserve_unknown_fields : Bool = false, key: "x-kubernetes-preserve-unknown-fields"
 
                 def to_crystal(name : String)
