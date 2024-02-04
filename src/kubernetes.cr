@@ -4,6 +4,7 @@ require "yaml"
 require "uuid"
 require "uuid/json"
 require "uuid/yaml"
+require "uri/yaml"
 require "db/pool"
 
 require "./serializable"
@@ -12,6 +13,32 @@ module Kubernetes
   VERSION = "0.1.0"
 
   class Client
+    def self.new(*, config_file : String, context context_name : String)
+      config = File.open(config_file) { |f| Config.from_yaml f }
+      if context_entry = config.contexts.find { |c| c.name == context_name }
+        if cluster_entry = config.clusters.find { |c| c.name == context_entry.context.cluster }
+          if user_entry = config.users.find { |u| u.name == context_entry.context.user }
+            file = File.tempfile prefix: "kubernetes", suffix: ".crt" do |tempfile|
+              Base64.decode cluster_entry.cluster.certificate_authority_data, tempfile
+            end
+            at_exit { file.delete }
+
+            new(
+              server: cluster_entry.cluster.server,
+              certificate_file: file.path,
+              token: user_entry.user.credential.status.token,
+            )
+          else
+            raise ArgumentError.new("No user #{context_entry.context.user.inspect} found in #{config_file}")
+          end
+        else
+          raise ArgumentError.new("No cluster #{context_entry.context.cluster.inspect} found in #{config_file}")
+        end
+      else
+        raise ArgumentError.new("No context #{context_name.inspect} found in #{config_file}")
+      end
+    end
+
     def initialize(
       @server : URI = URI.parse("https://#{ENV["KUBERNETES_SERVICE_HOST"]}:#{ENV["KUBERNETES_SERVICE_PORT"]}"),
       @token : String = File.read("/var/run/secrets/kubernetes.io/serviceaccount/token"),
@@ -1069,4 +1096,100 @@ module Kubernetes
     group: "",
     type: Pod,
     prefix: "api"
+
+  struct Config
+    include Serializable
+
+    field api_version : String
+    field kind : String
+    field clusters : Array(ClusterEntry)
+    field contexts : Array(ContextEntry)
+    field current_context : String,
+      key: "current-context"
+    field preferences : Hash(String, YAML::Any)
+    field users : Array(UserEntry)
+
+    struct ClusterEntry
+      include Serializable
+
+      field cluster : Cluster
+      field name : String
+
+      struct Cluster
+        include Serializable
+
+        field certificate_authority_data : String, key: "certificate-authority-data"
+        field server : URI
+      end
+    end
+
+    struct ContextEntry
+      include Serializable
+
+      field context : Context
+      field name : String
+
+      struct Context
+        include Serializable
+
+        field cluster : String
+        field user : String
+      end
+    end
+
+    struct UserEntry
+      include Serializable
+
+      field name : String
+      field user : User
+
+      struct User
+        include Serializable
+        include YAML::Serializable::Unmapped
+
+        field exec : Exec?
+
+        def credential
+          if exec = self.exec
+            output = IO::Memory.new
+            Process.run(
+              command: exec.command,
+              args: exec.args,
+              output: output,
+            )
+            ExecCredential.from_json output.rewind
+          else
+            raise "Cannot figure out how to get credentials for #{inspect}"
+          end
+        end
+
+        struct ExecCredential
+          include Serializable
+
+          field api_version : String
+          field kind : String
+          field spec : JSON::Any
+          field status : Status
+
+          struct Status
+            include Serializable
+
+            field expiration_timestamp : Time
+            field token : String
+          end
+        end
+      end
+
+      struct Exec
+        include Serializable
+
+        field api_version : String
+        field args : Array(String)
+        field command : String
+        field env : YAML::Any?
+        field interactive_mode : String?
+        field? provide_cluster_info : Bool?
+      end
+    end
+  end
 end
