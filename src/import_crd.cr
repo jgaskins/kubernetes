@@ -9,13 +9,16 @@ begin
     crd = Kubernetes::CRD.from_yaml(yaml)
 
     version = crd.spec.versions.find { |v| v.storage }.not_nil!
-    properties = version.schema.open_api_v3_schema.properties.spec.properties
+    spec = version.schema.open_api_v3_schema.properties.spec
+    properties = spec.properties
 
     code = <<-CRYSTAL
     struct #{crd.spec.names.kind}
       include Kubernetes::Serializable
 
       #{properties.to_crystal}
+
+      #{spec.initializer}
     end
 
     Kubernetes.define_resource(

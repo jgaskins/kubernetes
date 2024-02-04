@@ -23,7 +23,7 @@ module Kubernetes
         field plural : String
         field singular : String
         field kind : String
-        field short_names : Array(String)
+        field short_names : Array(String)?
       end
 
       struct Version
@@ -62,20 +62,78 @@ module Kubernetes
                 field required : Array(String) { [] of String }
                 field? preserve_unknown_fields : Bool = false, key: "x-kubernetes-preserve-unknown-fields"
 
-                def to_crystal(name : String)
-                  if nullable?
-                    "#{crystal_type(name)}?"
-                  else
-                    crystal_type(name)
+                def initializer
+                  String.build do |str|
+                    str.puts "def initialize(*,"
+                    properties.each do |name, property|
+                      str << "  @" << name.underscore
+                      if property.nullable?
+                        str << " = nil"
+                      elsif default = property.default
+                        if default_array = default.as_a?
+                          if (items = property.items) && default_array.empty?
+                            str << " = " << property.crystal_type(name) << ".new"
+                          else
+                            str << " = " << default.inspect
+                          end
+                        elsif default_hash = default.as_h?
+                          str << " = {} of String => JSON::Any"
+                        else
+                          str << " = " << default.inspect
+                        end
+                      end
+                      str.puts ','
+                    end
+                    str.puts ')'
+                    str.puts "end"
                   end
                 end
 
-                private def crystal_type(name : String)
+                def to_crystal(name : String)
+                  String.build do |str|
+                    type_name = crystal_type(name)
+                    if nullable?
+                      type_name += "?"
+                    end
+
+                    str << type_name
+
+                    if default_value = default
+                      case type
+                      # Go doesn't emit empty arrays, so a default empty array
+                      # needs to be handled manually
+                      when "array"
+                        if default_array = default_value.as_a?
+                          if default_array.empty?
+                            if items = self.items
+                              str << " = [] of #{items.to_crystal(name)}"
+                            else
+                              raise "Array type specification for #{name.inspect} must contain an `items` key"
+                            end
+                          end
+                        else
+                          raise "Default value for an array must be an array. Got: #{default_value.inspect}"
+                        end
+                      when "string"
+                        if e = @enum
+                          str << " = :" << default_value
+                        else
+                          str << " = "
+                          default_value.inspect str
+                        end
+                      when "integer"
+                        str << " = " << default_value
+                      end
+                    end
+                  end
+                end
+
+                protected def crystal_type(name : String)
                   case type
                   when "integer"
                     "Int64"
                   when "string"
-                    if e = self.enum
+                    if e = @enum
                       name.camelcase
                     else
                       "String"
@@ -84,19 +142,7 @@ module Kubernetes
                     "Bool"
                   when "array"
                     if items = self.items
-                      type_name = "Array(#{items.to_crystal(name)})"
-                      # Go doesn't emit empty arrays :-(
-                      if default_value = default
-                        if default_array = default_value.as_a?
-                          if default_array.empty?
-                            type_name = "#{type_name} { [] of #{items.to_crystal(name)} }"
-                          end
-                        else
-                          raise "Default value for an array must be an array. Got: #{default_value.inspect}"
-                        end
-                      end
-
-                      type_name
+                      "Array(#{items.to_crystal(name)})"
                     else
                       raise "Array type specification for #{name.inspect} must contain an `items` key"
                     end
@@ -153,6 +199,16 @@ module Kubernetes
                               include ::Kubernetes::Serializable
 
                               #{spec.properties.to_crystal}
+
+                              #{spec.initializer}
+                            end
+
+                          CRYSTAL
+                        elsif spec.type == "boolean"
+                          # Alias a predicate method ending in a question mark.
+                          str << <<-CRYSTAL
+                            def #{name.underscore}?
+                              #{name.underscore}
                             end
 
                           CRYSTAL
@@ -162,6 +218,8 @@ module Kubernetes
                               include ::Kubernetes::Serializable
 
                               #{items.properties.to_crystal}
+
+                              #{items.initializer}
                             end
 
                           CRYSTAL

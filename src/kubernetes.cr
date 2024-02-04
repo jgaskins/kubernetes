@@ -39,20 +39,54 @@ module Kubernetes
       end
     end
 
+    def self.new(
+      server : URI = URI.parse("https://#{ENV["KUBERNETES_SERVICE_HOST"]}:#{ENV["KUBERNETES_SERVICE_PORT"]}"),
+      token : String = File.read("/var/run/secrets/kubernetes.io/serviceaccount/token"),
+      certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+      client_cert_file : String? = nil,
+      private_key_file : String? = nil,
+      log = Log.for("kubernetes.client")
+    )
+      if certificate_file || client_cert_file || private_key_file
+        tls = OpenSSL::SSL::Context::Client.new
+
+        if certificate_file
+          tls.ca_certificates = certificate_file
+        end
+
+        if private_key_file
+          tls.private_key = private_key_file
+        end
+
+        if client_cert_file
+          tls.certificate_chain = client_cert_file
+        end
+      end
+
+      new(
+        server: server,
+        token: token,
+        tls: tls,
+        log: log,
+      )
+    end
+
     def initialize(
+      *,
       @server : URI = URI.parse("https://#{ENV["KUBERNETES_SERVICE_HOST"]}:#{ENV["KUBERNETES_SERVICE_PORT"]}"),
       @token : String = File.read("/var/run/secrets/kubernetes.io/serviceaccount/token"),
-      @certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+      @tls : OpenSSL::SSL::Context::Client?,
       @log = Log.for("kubernetes.client")
     )
-      tls = OpenSSL::SSL::Context::Client.new
-      tls.ca_certificates = @certificate_file
-
-      authorization = "Bearer #{token}"
+      if @token.presence
+        authorization = "Bearer #{token}"
+      end
       @http_pool = DB::Pool(HTTP::Client).new do
-        http = HTTP::Client.new(server, tls: tls)
+        http = HTTP::Client.new(server, tls: @tls)
         http.before_request do |request|
-          request.headers["Authorization"] = authorization
+          if authorization
+            request.headers["Authorization"] = authorization
+          end
         end
         http
       end
@@ -71,6 +105,19 @@ module Kubernetes
     def api_resources(group : String)
       get("/apis/#{group}") do |response|
         APIResource::List.from_json response.body_io
+      end
+    end
+
+    def get(path : String, headers = HTTP::Headers.new, *, as type : T.class) : T? forall T
+      get path, headers do |response|
+        case response.status
+        when .ok?
+          T.from_json(response.body_io)
+        when .not_found?
+          nil
+        else
+          raise UnexpectedResponse.new("Unexpected response status: #{response.status_code} - #{response.body_io.gets_to_end}")
+        end
       end
     end
 
@@ -161,8 +208,8 @@ module Kubernetes
   struct Resource(T)
     include Serializable
 
-    field api_version : String = ""
-    field kind : String = ""
+    field api_version : String { "" }
+    field kind : String { "" }
     field metadata : Metadata
     field spec : T
     field status : JSON::Any = JSON::Any.new(nil)
@@ -177,21 +224,21 @@ module Kubernetes
     DEFAULT_TIME = Time.new(seconds: 0, nanoseconds: 0, location: Time::Location::UTC)
 
     field name : String = ""
-    field namespace : String = ""
+    field namespace : String { "" }
     field labels : Hash(String, String) { {} of String => String }
     field annotations : Hash(String, String) { {} of String => String }
-    field resource_version : String = "", ignore_serialize: true
-    field generate_name : String = "", ignore_serialize: true
-    field generation : Int64 = 0i64, ignore_serialize: true
+    field resource_version : String, ignore_serialize: true { "" }
+    field generate_name : String, ignore_serialize: true { "" }
+    field generation : Int64, ignore_serialize: true { 0i64 }
     field creation_timestamp : Time = DEFAULT_TIME, ignore_serialize: true
     field deletion_timestamp : Time?, ignore_serialize: true
     field owner_references : Array(OwnerReferenceApplyConfiguration), ignore_serialize: true do
       [] of OwnerReferenceApplyConfiguration
     end
     field finalizers : Array(String) { %w[] }
-    field uid : UUID = UUID.empty, ignore_serialize: true
+    field uid : UUID, ignore_serialize: true { UUID.empty }
 
-    def initialize(@name, @namespace = "", @labels = {} of String => String, @annotations = {} of String => String)
+    def initialize(@name, @namespace = nil, @labels = {} of String => String, @annotations = {} of String => String)
     end
   end
 
@@ -346,16 +393,6 @@ module Kubernetes
     end
   end
 
-  struct Pod
-    include Serializable
-
-    field spec : Spec
-
-    struct Spec
-      include Serializable
-    end
-  end
-
   struct APIGroup
     include Serializable
 
@@ -478,7 +515,7 @@ module Kubernetes
 
       field replicas : Int32
       field selector : Selector
-      field template : Template
+      field template : PodTemplate
       field strategy : Strategy
       field revision_history_limit : Int32
       field progress_deadline_seconds : Int32
@@ -508,94 +545,6 @@ module Kubernetes
         end
       end
 
-      struct Template
-        include Serializable
-
-        field metadata : Metadata?
-        field spec : Spec?
-
-        # https://github.com/kubernetes/kubernetes/blob/2dede1d4d453413da6fd852e00fc7d4c8784d2a8/staging/src/k8s.io/client-go/applyconfigurations/core/v1/podspec.go#L27-L63
-        struct Spec
-          include Serializable
-
-          field containers : Array(Container)
-          field restart_policy : String?
-          field termination_grace_period_seconds : Int32
-          field dns_policy : String
-          field service_account_name : String?
-          field service_account : String?
-          field security_context : JSON::Any
-          field scheduler_name : String
-
-          struct Container
-            include Serializable
-
-            field name : String
-            field image : String
-            field args : Array(String) = %w[]
-            field ports : Array(Port) = [] of Port
-            field env : Array(Env) = [] of Env
-            field resources : Resources = Resources.new
-            field termination_message_path : String?
-            field termination_message_policy : String?
-            field image_pull_policy : String
-
-            struct Resources
-              include Serializable
-
-              field requests : Resource?
-              field limits : Resource?
-
-              def initialize
-              end
-
-              struct Resource
-                include Serializable
-
-                field cpu : String?
-                field memory : String?
-              end
-            end
-
-            struct Env
-              include Serializable
-
-              field name : String
-              field value : String = ""
-              field value_from : ValueFrom?
-
-              struct ValueFrom
-                include Serializable
-
-                field field_ref : FieldRef?
-              end
-
-              struct FieldRef
-                include Serializable
-
-                field api_version : String = "v1"
-                field field_path : String
-              end
-            end
-
-            struct Port
-              include Serializable
-
-              field container_port : Int32?
-              field protocol : String?
-            end
-          end
-        end
-
-        struct Metadata
-          include Serializable
-
-          field creation_timestamp : Time?
-          field labels : Hash(String, String) = {} of String => String
-          field annotations : Hash(String, String) = {} of String => String
-        end
-      end
-
       struct Selector
         include Serializable
 
@@ -617,6 +566,113 @@ module Kubernetes
     end
   end
 
+  struct PodTemplate
+    include Serializable
+
+    field metadata : Metadata?
+    field spec : PodSpec?
+  end
+
+  # https://github.com/kubernetes/kubernetes/blob/2dede1d4d453413da6fd852e00fc7d4c8784d2a8/staging/src/k8s.io/client-go/applyconfigurations/core/v1/podspec.go#L27-L63
+  struct PodSpec
+    include Serializable
+
+    field containers : Array(Container)
+    field restart_policy : String?
+    field termination_grace_period_seconds : Int32
+    field dns_policy : String
+    field service_account_name : String?
+    field service_account : String?
+    field security_context : JSON::Any
+    field scheduler_name : String
+  end
+
+  struct Container
+    include Serializable
+
+    field name : String
+    field image : String
+    field args : Array(String) = %w[]
+    field ports : Array(Port) = [] of Port
+    field env : Array(EnvVar) = [] of EnvVar
+    field resources : Resources = Resources.new
+    field termination_message_path : String?
+    field termination_message_policy : String?
+    field image_pull_policy : String
+
+    struct Resources
+      include Serializable
+
+      field requests : Resource?
+      field limits : Resource?
+
+      def initialize
+      end
+
+      struct Resource
+        include Serializable
+
+        field cpu : String?
+        field memory : String?
+      end
+    end
+
+    struct EnvVar
+      include Serializable
+
+      field name : String
+      field value : String { "" }
+      field value_from : EnvVarSource?
+    end
+
+    struct EnvVarSource
+      include Serializable
+
+      field field_ref : ObjectFieldSelector?
+      field config_map_key_ref : ConfigMapKeySelector?
+      field resource_field_ref : ResourceFieldSelector?
+      field secret_key_ref : SecretKeySelector?
+    end
+
+    struct ObjectFieldSelector
+      include Serializable
+
+      field api_version : String = "v1"
+      field field_path : String
+    end
+
+    struct ConfigMapKeySelector
+      include Serializable
+
+      field key : String
+      field name : String
+      field optional : Bool?
+    end
+
+    struct ResourceFieldSelector
+      include Serializable
+
+      field container_name : String?
+      field divisor : JSON::Any
+      field resource : String
+    end
+
+    struct SecretKeySelector
+      include Serializable
+
+      field key : String
+      field name : String
+      field optional : Bool?
+    end
+
+    struct Port
+      include Serializable
+
+      field container_port : Int32?
+      field protocol : String?
+    end
+  end
+
   # https://github.com/kubernetes/kubernetes/blob/2dede1d4d453413da6fd852e00fc7d4c8784d2a8/staging/src/k8s.io/client-go/applyconfigurations/batch/v1/jobspec.go#L29-L40
   struct Job
     include Serializable
@@ -629,7 +685,7 @@ module Kubernetes
     field selector : Deployment::Spec::Selector?
     field? manual_selector : Bool?
     # TODO: ditto?
-    field template : Deployment::Spec::Template?
+    field template : PodTemplate?
     field ttl_seconds_after_finished : Int32?
     field completion_mode : String?
     field? suspend : Bool?
@@ -644,8 +700,6 @@ module Kubernetes
 
     struct Spec
       include Serializable
-
-      alias Container = ::Kubernetes::Deployment::Spec::Template::Spec::Container
 
       field volumes : Array(Volume)
       field containers : Array(Container)
@@ -1005,7 +1059,9 @@ module Kubernetes
         loop do
           params["resourceVersion"] = resource_version
 
+          get_response = nil
           return get "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}?#{params}" do |response|
+            get_response = response
             unless response.success?
               if response.headers["Content-Type"]?.try(&.includes?("application/json"))
                 message = JSON.parse(response.body_io)
@@ -1045,6 +1101,8 @@ module Kubernetes
         rescue ex : JSON::ParseException
           @log.warn { "Cannot parse watched object: #{ex} (server may have closed the HTTP connection)" }
         end
+      ensure
+        @log.warn { "Exited watch loop for {{plural_method_name.id}}, response = #{get_response.inspect}" }
       end
     end
     {% debug if flag? :debug_define_resource %}
@@ -1059,6 +1117,9 @@ module Kubernetes
   end
 
   class ClientError < Error
+  end
+
+  class UnexpectedResponse < Error
   end
 
   define_resource "deployments",
@@ -1184,7 +1245,7 @@ module Kubernetes
         include Serializable
 
         field api_version : String
-        field args : Array(String)
+        field args : Array(String) { [] of String }
         field command : String
         field env : YAML::Any?
         field interactive_mode : String?
