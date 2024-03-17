@@ -1056,10 +1056,10 @@ module Kubernetes
         if namespace
           namespace = "/namespaces/#{namespace}"
         end
+        get_response = nil
         loop do
           params["resourceVersion"] = resource_version
 
-          get_response = nil
           return get "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}?#{params}" do |response|
             get_response = response
             unless response.success?
