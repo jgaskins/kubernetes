@@ -13,8 +13,16 @@ module Kubernetes
   VERSION = "0.1.0"
 
   class Client
-    def self.new(*, config_file : String, context context_name : String)
-      config = File.open(config_file) { |f| Config.from_yaml f }
+    def self.from_config(*, file : String = "#{ENV["HOME"]?}/.kube/config", context context_name : String? = nil)
+      config = File.open(file) { |f| Config.from_yaml f }
+
+      from_config(
+        config: config,
+        context: context_name || config.current_context,
+      )
+    end
+
+    def self.from_config(config : Config, *, context context_name : String = config.current_context)
       if context_entry = config.contexts.find { |c| c.name == context_name }
         if cluster_entry = config.clusters.find { |c| c.name == context_entry.context.cluster }
           if user_entry = config.users.find { |u| u.name == context_entry.context.user }
@@ -29,18 +37,32 @@ module Kubernetes
               token: user_entry.user.credential.status.token,
             )
           else
-            raise ArgumentError.new("No user #{context_entry.context.user.inspect} found in #{config_file}")
+            raise ArgumentError.new("No user #{context_entry.context.user.inspect} found in Kubernetes config")
           end
         else
-          raise ArgumentError.new("No cluster #{context_entry.context.cluster.inspect} found in #{config_file}")
+          raise ArgumentError.new("No cluster #{context_entry.context.cluster.inspect} found in Kubernetes config")
         end
       else
-        raise ArgumentError.new("No context #{context_name.inspect} found in #{config_file}")
+        raise ArgumentError.new("No context #{context_name.inspect} found in Kubernetes config")
+      end
+    end
+
+    def self.new
+      if host = ENV["KUBERNETES_SERVICE_HOST"]?
+        if port = ENV["KUBERNETES_SERVICE_PORT"]?
+          host += ":#{port}"
+        end
+        server = URI.parse("https://#{host}")
+        new server: server
+      elsif File.exists? "#{ENV["HOME"]?}/.kube/config"
+        from_config
+      else
+        raise ArgumentError.new("Using `Kubernetes::Client.new` with no arguments can only be run where there is a valid `~/.kube/config` or from within a Kubernetes cluster with `KUBERNETES_SERVICE_HOST` set.")
       end
     end
 
     def self.new(
-      server : URI = URI.parse("https://#{ENV["KUBERNETES_SERVICE_HOST"]}:#{ENV["KUBERNETES_SERVICE_PORT"]}"),
+      server : URI,
       token : String = File.read("/var/run/secrets/kubernetes.io/serviceaccount/token"),
       certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
       client_cert_file : String? = nil,
