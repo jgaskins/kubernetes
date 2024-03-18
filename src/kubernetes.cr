@@ -446,7 +446,7 @@ module Kubernetes
     field namespaced : Bool
     field kind : String
     field verbs : Array(String)
-    field short_names : Array(String) = %w[]
+    field short_names : Array(String) { %w[] }
     field storage_version_hash : String = ""
 
     struct List
