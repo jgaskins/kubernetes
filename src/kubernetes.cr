@@ -908,13 +908,19 @@ module Kubernetes
 
     class ::Kubernetes::Client
       def {{plural_method_name.id}}(
-        namespace : String? = "default",
+        {% if cluster_wide == false %}
+          namespace : String? = "default",
+        {% end %}
         # FIXME: Currently this is intended to be a string, but maybe we should
         # make it a Hash/NamedTuple?
         label_selector = nil,
       )
         label_selector = make_label_selector_string(label_selector)
-        namespace &&= "/namespaces/#{namespace}"
+        {% if cluster_wide == false %}
+          namespace &&= "/namespaces/#{namespace}"
+        {% else %}
+          namespace = nil
+        {% end %}
         params = URI::Params.new
         params["labelSelector"] = label_selector if label_selector
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}?#{params}"
