@@ -30,7 +30,7 @@ k8s.watch_serviceapps do |watch|
         selector: {matchLabels: labels},
         template: {
           metadata: {labels: labels},
-          spec: {
+          spec:     {
             containers: [
               {
                 image:   svcapp.spec.image,
@@ -52,9 +52,9 @@ k8s.watch_serviceapps do |watch|
       kind: "Service",
       metadata: metadata,
       spec: {
-        type: "ClusterIP",
-        selector: labels,
-        ports: [{ port: 3000 }],
+        type:            "ClusterIP",
+        selector:        labels,
+        ports:           [{port: 3000}],
         sessionAffinity: "None",
       },
     )
@@ -79,10 +79,10 @@ k8s.watch_serviceapps do |watch|
                   backend: {
                     service: {
                       name: metadata[:name],
-                      port: { number: 3000 },
+                      port: {number: 3000},
                     },
                   },
-                  path: "/",
+                  path:     "/",
                   pathType: "Prefix",
                 },
               ],

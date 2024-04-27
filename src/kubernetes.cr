@@ -23,28 +23,31 @@ module Kubernetes
     end
 
     def self.from_config(config : Config, *, context context_name : String = config.current_context)
-      if context_entry = config.contexts.find { |c| c.name == context_name }
-        if cluster_entry = config.clusters.find { |c| c.name == context_entry.context.cluster }
-          if user_entry = config.users.find { |u| u.name == context_entry.context.user }
-            file = File.tempfile prefix: "kubernetes", suffix: ".crt" do |tempfile|
-              Base64.decode cluster_entry.cluster.certificate_authority_data, tempfile
-            end
-            at_exit { file.delete }
-
-            new(
-              server: cluster_entry.cluster.server,
-              certificate_file: file.path,
-              token: user_entry.user.credential.status.token,
-            )
-          else
-            raise ArgumentError.new("No user #{context_entry.context.user.inspect} found in Kubernetes config")
-          end
-        else
-          raise ArgumentError.new("No cluster #{context_entry.context.cluster.inspect} found in Kubernetes config")
-        end
-      else
+      context_entry = config.contexts.find { |c| c.name == context_name }
+      if !context_entry
         raise ArgumentError.new("No context #{context_name.inspect} found in Kubernetes config")
       end
+
+      cluster_entry = config.clusters.find { |c| c.name == context_entry.context.cluster }
+      if !cluster_entry
+        raise ArgumentError.new("No cluster #{context_entry.context.cluster.inspect} found in Kubernetes config")
+      end
+
+      user_entry = config.users.find { |u| u.name == context_entry.context.user }
+      if !user_entry
+        raise ArgumentError.new("No user #{context_entry.context.user.inspect} found in Kubernetes config")
+      end
+
+      file = File.tempfile prefix: "kubernetes", suffix: ".crt" do |tempfile|
+        Base64.decode cluster_entry.cluster.certificate_authority_data, tempfile
+      end
+      at_exit { file.delete }
+
+      new(
+        server: cluster_entry.cluster.server,
+        certificate_file: file.path,
+        token: user_entry.user.credential.status.token,
+      )
     end
 
     def self.new
@@ -943,7 +946,7 @@ module Kubernetes
 
       def {{singular_method_name.id}}(name : String, namespace : String = "default", resource_version : String = "")
         namespace = "/namespaces/#{namespace}"
-        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}/#{name}" 
+        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}/#{name}"
         params = URI::Params{
           "resourceVersion" => resource_version,
         }
