@@ -43,11 +43,31 @@ module Kubernetes
       end
       at_exit { file.delete }
 
-      new(
-        server: cluster_entry.cluster.server,
-        certificate_file: file.path,
-        token: user_entry.user.credential.status.token,
-      )
+      user = user_entry.user
+
+      if user.client_certificate_data && user.client_key_data
+        client_cert_file = File.tempfile prefix: "kubernetes", suffix: ".crt" do |tempfile|
+          Base64.decode user.client_certificate_data.not_nil!, tempfile
+        end
+        private_key_file = File.tempfile prefix: "kubernetes", suffix: ".crt" do |tempfile|
+          Base64.decode user.client_key_data.not_nil!, tempfile
+        end
+        at_exit { client_cert_file.delete; private_key_file.delete }
+
+        new(
+          token: "",
+          server: cluster_entry.cluster.server,
+          certificate_file: file.path,
+          client_cert_file: client_cert_file.path,
+          private_key_file: private_key_file.path,
+        )
+      else
+        new(
+          server: cluster_entry.cluster.server,
+          certificate_file: file.path,
+          token: user_entry.user.credential.status.token,
+        )
+      end
     end
 
     def self.new
@@ -1240,6 +1260,11 @@ module Kubernetes
         include YAML::Serializable::Unmapped
 
         field exec : Exec?
+
+        @[YAML::Field(key: "client-certificate-data")]
+        property client_certificate_data : String?
+        @[YAML::Field(key: "client-key-data")]
+        property client_key_data : String?
 
         def credential
           if exec = self.exec
