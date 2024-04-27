@@ -1261,10 +1261,8 @@ module Kubernetes
 
         field exec : Exec?
 
-        @[YAML::Field(key: "client-certificate-data")]
-        property client_certificate_data : String?
-        @[YAML::Field(key: "client-key-data")]
-        property client_key_data : String?
+        field client_certificate_data : String?, key: "client-certificate-data"
+        field client_key_data : String?, key: "client-key-data"
 
         def credential
           if exec = self.exec
