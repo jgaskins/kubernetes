@@ -45,12 +45,12 @@ module Kubernetes
 
       user = user_entry.user
 
-      if user.client_certificate_data && user.client_key_data
+      if (cert = user.client_certificate_data) && (key = user.client_key_data)
         client_cert_file = File.tempfile prefix: "kubernetes", suffix: ".crt" do |tempfile|
-          Base64.decode user.client_certificate_data.not_nil!, tempfile
+          Base64.decode cert, tempfile
         end
         private_key_file = File.tempfile prefix: "kubernetes", suffix: ".crt" do |tempfile|
-          Base64.decode user.client_key_data.not_nil!, tempfile
+          Base64.decode key, tempfile
         end
         at_exit { client_cert_file.delete; private_key_file.delete }
 
