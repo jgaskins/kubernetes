@@ -1075,11 +1075,11 @@ module Kubernetes
         JSON.parse response.body
       end
 
-      def watch_{{plural_method_name.id}}(resource_version = "0", timeout : Time::Span = 1.hour, namespace : String? = nil, labels label_selector : String = "")
+      def watch_{{plural_method_name.id}}(resource_version = "0", timeout : Time::Span = 10.minutes, namespace : String? = nil, labels label_selector : String = "")
         params = URI::Params{
           "watch" => "1",
-          "timeoutSeconds" => timeout.total_seconds.to_i.to_s,
-          "labelSelector" =>  label_selector,
+          "timeoutSeconds" => timeout.total_seconds.to_i64.to_s,
+          "labelSelector" => label_selector,
         }
         if namespace
           namespace = "/namespaces/#{namespace}"
