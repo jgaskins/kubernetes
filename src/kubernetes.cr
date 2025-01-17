@@ -67,7 +67,7 @@ module Kubernetes
       certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
       client_cert_file : String? = nil,
       private_key_file : String? = nil,
-      log = Log.for("kubernetes.client")
+      log = Log.for("kubernetes.client"),
     )
       if certificate_file || client_cert_file || private_key_file
         tls = OpenSSL::SSL::Context::Client.new
@@ -98,7 +98,7 @@ module Kubernetes
       @server : URI = URI.parse("https://#{ENV["KUBERNETES_SERVICE_HOST"]}:#{ENV["KUBERNETES_SERVICE_PORT"]}"),
       @token : String = File.read("/var/run/secrets/kubernetes.io/serviceaccount/token"),
       @tls : OpenSSL::SSL::Context::Client?,
-      @log = Log.for("kubernetes.client")
+      @log = Log.for("kubernetes.client"),
     )
       if @token.presence
         authorization = "Bearer #{token}"
@@ -143,7 +143,7 @@ module Kubernetes
       end
     end
 
-    def get(path : String, headers = HTTP::Headers.new)
+    def get(path : String, headers = HTTP::Headers.new, &)
       @http_pool.checkout do |http|
         path = path.gsub(%r{//+}, '/')
         http.get path, headers: headers do |response|
@@ -549,7 +549,7 @@ module Kubernetes
         @template,
         @strategy = Strategy.new,
         @revision_history_limit = 10,
-        @progress_deadline_seconds = 600
+        @progress_deadline_seconds = 600,
       )
       end
 
