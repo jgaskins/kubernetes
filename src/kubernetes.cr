@@ -1064,10 +1064,9 @@ module Kubernetes
           "Content-Type" =>  "application/merge-patch+json",
         }
 
-        response = raw_patch path, args.to_json, headers: headers
+        response = raw_patch path, {subresource => args}.to_json, headers: headers
         if body = response.body
-          # ({{type}} | Status).from_json body
-          JSON.parse body
+          ({{type}} | Status).from_json body
         else
           raise "Missing response body"
         end
