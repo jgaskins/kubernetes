@@ -695,6 +695,25 @@ module Kubernetes
     end
   end
 
+  struct CronJob
+    include Serializable
+
+    field schedule : String
+    field job_template : JobTemplate
+
+    struct JobTemplate
+      include Serializable
+
+      field spec : Spec
+
+      struct Spec
+        include Serializable
+
+        field template : Job
+      end
+    end
+  end
+
   # https://github.com/kubernetes/kubernetes/blob/2dede1d4d453413da6fd852e00fc7d4c8784d2a8/staging/src/k8s.io/client-go/applyconfigurations/batch/v1/jobspec.go#L29-L40
   struct Job
     include Serializable
@@ -1169,6 +1188,11 @@ module Kubernetes
     group: "apps",
     type: Resource(StatefulSet),
     kind: "StatefulSet"
+
+  define_resource "cronjobs",
+    group: "batch",
+    type: Resource(CronJob),
+    kind: "CronJob"
 
   define_resource "jobs",
     group: "batch",
