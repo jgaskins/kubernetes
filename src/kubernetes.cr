@@ -1135,7 +1135,11 @@ module Kubernetes
           @log.warn { ex }
           sleep 1 # Don't hammer the server
         rescue ex : JSON::ParseException
-          @log.warn { "Cannot parse watched object: #{ex} (server may have closed the HTTP connection)" }
+          # This happens when the watch request times out. This is expected and
+          # not an error, so we just ignore it.
+          unless ex.message.try &.includes? "Expected BeginObject but was EOF at line 1, column 1"
+            @log.warn { "Cannot parse watched object: #{ex}" }
+          end
         end
       ensure
         @log.warn { "Exited watch loop for {{plural_method_name.id}}, response = #{get_response.inspect}" }
