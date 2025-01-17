@@ -788,7 +788,9 @@ module Kubernetes
     struct Ingress
       include Serializable
 
-      field rules : Array(Rule) = [] of Rule
+      field ingress_class_name : String?
+      field rules : Array(Rule) { [] of Rule }
+      field tls : Array(TLS) { [] of TLS }
 
       struct Rule
         include Serializable
@@ -832,6 +834,12 @@ module Kubernetes
             end
           end
         end
+      end
+
+      struct TLS
+        include Serializable
+        field hosts : Array(String)
+        field secret_name : String
       end
     end
   end
