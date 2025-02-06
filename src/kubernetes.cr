@@ -449,12 +449,28 @@ module Kubernetes
     field short_names : Array(String) { %w[] }
     field storage_version_hash : String = ""
 
+    def initialize(
+      *,
+      @name,
+      @singular_name,
+      @namespaced,
+      @kind,
+      @verbs,
+      @short_names = nil,
+      @storage_version_hash = nil,
+    )
+    end
+
     struct List
       include Serializable
 
       field api_version : String?
+      field kind : String = "APIResourceList"
       field group_version : String
       field resources : Array(APIResource)
+
+      def initialize(*, @api_version, @group_version, @resources)
+      end
     end
   end
 
