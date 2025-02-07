@@ -447,7 +447,7 @@ module Kubernetes
     field kind : String
     field verbs : Array(String)
     field short_names : Array(String) { %w[] }
-    field storage_version_hash : String = ""
+    field storage_version_hash : String?
 
     def initialize(
       *,
