@@ -190,6 +190,9 @@ module Kubernetes
                   def to_crystal
                     String.build do |str|
                       @mapping.each do |name, spec|
+                        spec.description.try &.each_line do |line|
+                          str.puts "  # #{line}"
+                        end
                         str << "  @[YAML::Field(key: #{name.inspect})]\n"
                         str << "  @[JSON::Field(key: #{name.inspect})]\n"
                         str << "  getter #{name.underscore} : #{spec.to_crystal(name)}\n"
