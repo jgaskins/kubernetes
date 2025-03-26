@@ -12,7 +12,13 @@ begin
     spec = version.schema.open_api_v3_schema.properties.spec
     properties = spec.properties
 
+    description = String.build do |str|
+      spec.description.try &.each_line do |line|
+        str.puts "# #{line}"
+      end
+    end
     code = <<-CRYSTAL
+    #{description.rstrip}
     struct #{crd.spec.names.kind}
       include Kubernetes::Serializable
 

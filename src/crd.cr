@@ -43,6 +43,7 @@ module Kubernetes
             include Serializable
 
             field type : String
+            field description : String?
             field properties : Properties
 
             struct Properties
@@ -197,6 +198,9 @@ module Kubernetes
                         str << "  @[JSON::Field(key: #{name.inspect})]\n"
                         str << "  getter #{name.underscore} : #{spec.to_crystal(name)}\n"
                         if spec.type == "object" && !spec.preserve_unknown_fields?
+                          spec.description.try &.each_line do |line|
+                            str.puts "  # #{line}"
+                          end
                           str << <<-CRYSTAL
                             struct #{name.camelcase}
                               include ::Kubernetes::Serializable
@@ -216,6 +220,9 @@ module Kubernetes
 
                           CRYSTAL
                         elsif spec.type == "array" && (items = spec.items) && items.type == "object"
+                          spec.description.try &.each_line do |line|
+                            str.puts "  # #{line}"
+                          end
                           str << <<-CRYSTAL
                             struct #{name.camelcase}
                               include ::Kubernetes::Serializable
@@ -227,6 +234,9 @@ module Kubernetes
 
                           CRYSTAL
                         elsif spec.type == "string" && (e = spec.enum)
+                          spec.description.try &.each_line do |line|
+                            str.puts "  # #{line}"
+                          end
                           str.puts "enum #{name.camelcase}"
                           e.each do |item|
                             str.puts item.camelcase
