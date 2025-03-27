@@ -43,7 +43,7 @@ def florp_spec(florp : Kubernetes::Resource(Florp))
     selector: {matchLabels: labels},
     template: {
       metadata: {labels: labels},
-      spec: {
+      spec:     {
         containers: [
           {
             image:   "busybox:latest",
@@ -65,7 +65,7 @@ def env(**args)
     .new(initial_capacity: args.size)
 
   args.each do |key, value|
-    array << { name: key.to_s, value: value }
+    array << {name: key.to_s, value: value}
   end
 
   array
