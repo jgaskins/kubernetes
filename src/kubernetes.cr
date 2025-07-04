@@ -758,7 +758,7 @@ module Kubernetes
     struct Spec
       include Serializable
 
-      field volumes : Array(Volume)
+      field volumes : Array(Volume) { [] of Volume }
       field containers : Array(Container)
       field restart_policy : String?
       field termination_grace_period_seconds : Int32
