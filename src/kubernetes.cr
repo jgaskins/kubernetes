@@ -140,19 +140,14 @@ module Kubernetes
     def initialize(
       *,
       @server : URI = URI.parse("https://#{ENV["KUBERNETES_SERVICE_HOST"]}:#{ENV["KUBERNETES_SERVICE_PORT"]}"),
-      @token : String | Proc(String) = -> { File.read("/var/run/secrets/kubernetes.io/serviceaccount/token").strip },
+      @token : Proc(String) = -> { File.read("/var/run/secrets/kubernetes.io/serviceaccount/token").strip },
       @tls : OpenSSL::SSL::Context::Client?,
       @log = Log.for("kubernetes.client"),
     )
       @http_pool = DB::Pool(HTTP::Client).new do
         http = HTTP::Client.new(server, tls: @tls)
         http.before_request do |request|
-          token_value = case token = @token
-                        when String
-                          token
-                        when Proc(String)
-                          token.call
-                        end
+          token_value = token.call
 
           if token_value.presence
             request.headers["Authorization"] = "Bearer #{token_value}"
