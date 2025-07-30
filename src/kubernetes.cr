@@ -65,7 +65,7 @@ module Kubernetes
         new(
           server: cluster_entry.cluster.server,
           certificate_file: file.path,
-          token: user_entry.user.credential.status.token,
+          token: -> { user_entry.user.credential.status.token },
         )
       end
     end
@@ -84,9 +84,30 @@ module Kubernetes
       end
     end
 
+    # Constructor that accepts a token file path and creates a proc to read it
     def self.new(
       server : URI,
-      token : String = File.read("/var/run/secrets/kubernetes.io/serviceaccount/token"),
+      token_file : Path,
+      certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+      client_cert_file : String? = nil,
+      private_key_file : String? = nil,
+      log = Log.for("kubernetes.client"),
+    )
+      token_proc = -> { File.read(token_file.to_s).strip }
+
+      new(
+        server: server,
+        token: token_proc,
+        certificate_file: certificate_file,
+        client_cert_file: client_cert_file,
+        private_key_file: private_key_file,
+        log: log,
+      )
+    end
+
+    def self.new(
+      server : URI,
+      token : String | Proc(String) = -> { File.read("/var/run/secrets/kubernetes.io/serviceaccount/token").strip },
       certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
       client_cert_file : String? = nil,
       private_key_file : String? = nil,
@@ -119,18 +140,17 @@ module Kubernetes
     def initialize(
       *,
       @server : URI = URI.parse("https://#{ENV["KUBERNETES_SERVICE_HOST"]}:#{ENV["KUBERNETES_SERVICE_PORT"]}"),
-      @token : String = File.read("/var/run/secrets/kubernetes.io/serviceaccount/token"),
+      @token : Proc(String) = -> { File.read("/var/run/secrets/kubernetes.io/serviceaccount/token").strip },
       @tls : OpenSSL::SSL::Context::Client?,
       @log = Log.for("kubernetes.client"),
     )
-      if @token.presence
-        authorization = "Bearer #{token}"
-      end
       @http_pool = DB::Pool(HTTP::Client).new do
         http = HTTP::Client.new(server, tls: @tls)
         http.before_request do |request|
-          if authorization
-            request.headers["Authorization"] = authorization
+          token_value = token.call
+
+          if token_value.presence
+            request.headers["Authorization"] = "Bearer #{token_value}"
           end
         end
         http
