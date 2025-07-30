@@ -55,7 +55,7 @@ module Kubernetes
         at_exit { client_cert_file.delete; private_key_file.delete }
 
         new(
-          token: "",
+          token: -> { "" },
           server: cluster_entry.cluster.server,
           certificate_file: file.path,
           client_cert_file: client_cert_file.path,
@@ -107,7 +107,7 @@ module Kubernetes
 
     def self.new(
       server : URI,
-      token : String | Proc(String) = -> { File.read("/var/run/secrets/kubernetes.io/serviceaccount/token").strip },
+      token : Proc(String) = -> { File.read("/var/run/secrets/kubernetes.io/serviceaccount/token").strip },
       certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
       client_cert_file : String? = nil,
       private_key_file : String? = nil,
