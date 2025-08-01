@@ -1190,7 +1190,9 @@ module Kubernetes
 
               # If there's a JSON parsing failure and we loop back around, we'll
               # use this resource version to pick up where we left off.
-              resource_version = watch.object.metadata.resource_version
+              if new_version = watch.object.metadata.resource_version.presence
+                resource_version = new_version
+              end
 
               case obj = watch.object
               when Status
