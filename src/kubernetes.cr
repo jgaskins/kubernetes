@@ -1196,6 +1196,9 @@ module Kubernetes
 
               case obj = watch.object
               when Status
+                if match = obj.message.match /too old resource version: \d+ \((\d+)\)/
+                  resource_version = match[1]
+                end
                 # If this is an error of some kind, we don't care we'll just run
                 # another request starting from the last resource version we've
                 # worked with.
