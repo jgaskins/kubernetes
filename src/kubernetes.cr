@@ -1213,6 +1213,8 @@ module Kubernetes
               yield watch
             end
           end
+        rescue ex : IO::EOFError
+          # Server closed the connection after the timeout
         rescue ex : IO::Error
           @log.warn { ex }
           sleep 1 # Don't hammer the server
