@@ -65,7 +65,7 @@ module Kubernetes
         new(
           server: cluster_entry.cluster.server,
           certificate_file: file.path,
-          token: -> { user_entry.user.credential.status.token },
+          token: -> { user_entry.user.credential.try &.status.token || "" },
         )
       end
     end
@@ -892,22 +892,13 @@ module Kubernetes
               ImplementationSpecific
               Exact
               Prefix
-            end
 
-            struct Backend
-              include Serializable
+              def to_json(json : ::JSON::Builder) : Nil
+                to_s.to_json(json)
+              end
 
-              struct Service
-                include Serializable
-
-                field name : String
-                field port : Port
-
-                struct Port
-                  include Serializable
-
-                  field number : Int32
-                end
+              def to_yaml(yaml : YAML::Nodes::Builder) : Nil
+                to_s.to_yaml(yaml)
               end
             end
           end
@@ -918,6 +909,25 @@ module Kubernetes
         include Serializable
         field hosts : Array(String)
         field secret_name : String
+      end
+
+      struct Backend
+        include Serializable
+
+        getter service : Service
+
+        struct Service
+          include Serializable
+
+          field name : String
+          field port : Port
+
+          struct Port
+            include Serializable
+
+            field number : Int32
+          end
+        end
       end
     end
   end
@@ -1296,7 +1306,7 @@ module Kubernetes
     field contexts : Array(ContextEntry)
     field current_context : String,
       key: "current-context"
-    field preferences : Hash(String, YAML::Any)
+    field preferences : Hash(String, YAML::Any)?
     field users : Array(UserEntry)
 
     struct ClusterEntry
