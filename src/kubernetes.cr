@@ -318,6 +318,12 @@ module Kubernetes
     field block_owner_deletion : Bool?
   end
 
+  enum PropagationPolicy
+    Background
+    Foreground
+    Orphan
+  end
+
   struct Service
     include Serializable
 
@@ -1164,8 +1170,9 @@ module Kubernetes
         delete_{{singular_method_name.id}} name: resource.metadata.name, namespace: resource.metadata.namespace
       end
 
-      def delete_{{singular_method_name.id}}(name : String{% if cluster_wide == false %}, namespace : String = "default"{% end %})
-        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}{% if cluster_wide == false %}/namespaces/#{namespace}{% end %}/{{name.id}}/#{name}"
+      def delete_{{singular_method_name.id}}(name : String{% if cluster_wide == false %}, namespace : String = "default"{% end %}, *, propagation_policy : PropagationPolicy = :background)
+        params = URI::Params{"propagationPolicy" => propagation_policy.to_s}
+        path = "/{{prefix.id}}/{{group.id}}/{{version.id}}{% if cluster_wide == false %}/namespaces/#{namespace}{% end %}/{{name.id}}/#{name}?#{params}"
         response = delete path
         JSON.parse response.body
       end
