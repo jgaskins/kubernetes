@@ -176,7 +176,7 @@ module Kubernetes
                     @mapping = Mapping.new(ctx, value)
                   end
 
-                  def each
+                  def each(&)
                     @mapping.each { |value| yield value }
                   end
 

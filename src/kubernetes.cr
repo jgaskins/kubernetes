@@ -8,11 +8,15 @@ require "uri/yaml"
 require "db/pool"
 
 require "./serializable"
+require "./token_file_watcher"
 
 module Kubernetes
   VERSION = "0.1.0"
 
   class Client
+    @http_pool : DB::Pool(HTTP::Client)
+    @on_close_callbacks : Array(->)
+
     def self.from_config(*, file : String = "#{ENV["HOME"]?}/.kube/config", context context_name : String? = nil)
       config = File.open(file) { |f| Config.from_yaml f }
 
@@ -84,26 +88,54 @@ module Kubernetes
       end
     end
 
-    # Constructor that accepts a token file path and creates a proc to read it
-    def self.new(
-      server : URI,
-      token_file : Path,
-      certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-      client_cert_file : String? = nil,
-      private_key_file : String? = nil,
-      log = Log.for("kubernetes.client"),
-    )
-      token_proc = -> { File.read(token_file.to_s).strip }
-
-      new(
-        server: server,
-        token: token_proc,
-        certificate_file: certificate_file,
-        client_cert_file: client_cert_file,
-        private_key_file: private_key_file,
-        log: log,
+    # Constructor that accepts a token file path and creates a proc to read it.
+    # On Linux, uses TokenFileWatcher with inotify for efficient token rotation detection.
+    # On other platforms, reads the file on each request.
+    {% if flag?(:linux) %}
+      def self.new(
+        server : URI,
+        token_file : Path,
+        certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+        client_cert_file : String? = nil,
+        private_key_file : String? = nil,
+        log = Log.for("kubernetes.client"),
       )
-    end
+        watcher = TokenFileWatcher.new(token_file, log: Log.for("kubernetes.token_watcher"))
+        token_proc = -> { watcher.token }
+
+        client = new(
+          server: server,
+          token: token_proc,
+          certificate_file: certificate_file,
+          client_cert_file: client_cert_file,
+          private_key_file: private_key_file,
+          log: log,
+        )
+
+        client.on_close { watcher.close }
+        client
+      end
+    {% else %}
+      def self.new(
+        server : URI,
+        token_file : Path,
+        certificate_file : String = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+        client_cert_file : String? = nil,
+        private_key_file : String? = nil,
+        log = Log.for("kubernetes.client"),
+      )
+        token_proc = -> { File.read(token_file.to_s).strip }
+
+        new(
+          server: server,
+          token: token_proc,
+          certificate_file: certificate_file,
+          client_cert_file: client_cert_file,
+          private_key_file: private_key_file,
+          log: log,
+        )
+      end
+    {% end %}
 
     def self.new(
       server : URI,
@@ -144,11 +176,11 @@ module Kubernetes
       @tls : OpenSSL::SSL::Context::Client?,
       @log = Log.for("kubernetes.client"),
     )
+      @on_close_callbacks = [] of ->
       @http_pool = DB::Pool(HTTP::Client).new do
-        http = HTTP::Client.new(server, tls: @tls)
+        http = HTTP::Client.new(@server, tls: @tls)
         http.before_request do |request|
-          token_value = token.call
-
+          token_value = @token.call
           if token_value.presence
             request.headers["Authorization"] = "Bearer #{token_value}"
           end
@@ -157,7 +189,15 @@ module Kubernetes
       end
     end
 
+    # Register a callback to be invoked when the client is closed.
+    # Used for cleanup of resources like TokenFileWatcher.
+    def on_close(&block : ->) : Nil
+      @on_close_callbacks << block
+    end
+
     def close : Nil
+      @on_close_callbacks.each(&.call)
+      @on_close_callbacks.clear
       @http_pool.close
     end
 
