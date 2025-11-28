@@ -61,6 +61,12 @@ module Kubernetes
           client_cert_file: client_cert_file.path,
           private_key_file: private_key_file.path,
         )
+      elsif (token = user.token_data)
+        new(
+          server: cluster_entry.cluster.server,
+          certificate_file: file.path,
+          token: -> { token },
+        )
       else
         new(
           server: cluster_entry.cluster.server,
@@ -1358,6 +1364,7 @@ module Kubernetes
 
         field client_certificate_data : String?, key: "client-certificate-data"
         field client_key_data : String?, key: "client-key-data"
+        field token_data : String?, key: "token"
 
         def credential
           if exec = self.exec
