@@ -1240,7 +1240,7 @@ module Kubernetes
           # Server closed the connection after the timeout
         rescue ex : IO::Error
           @log.warn { ex }
-          sleep 1 # Don't hammer the server
+          sleep 1.second # Don't hammer the server
         rescue ex : JSON::ParseException
           # This happens when the watch request times out. This is expected and
           # not an error, so we just ignore it.
