@@ -63,6 +63,8 @@ module Kubernetes
                 field required : Array(String) { [] of String }
                 field? preserve_unknown_fields : Bool = false, key: "x-kubernetes-preserve-unknown-fields"
 
+                field additional_properties : Bool? | Spec?, key: "additionalProperties"
+
                 def initializer
                   String.build do |str|
                     str.puts "def initialize(*,"
@@ -85,6 +87,9 @@ module Kubernetes
                       end
                       str.puts ','
                     end
+
+
+
                     str.puts ')'
                     str.puts "end"
                   end
@@ -148,8 +153,10 @@ module Kubernetes
                       raise "Array type specification for #{name.inspect} must contain an `items` key"
                     end
                   when "object"
-                    if preserve_unknown_fields?
+                    if preserve_unknown_fields? || additional_properties == true
                       "Hash(String, JSON::Any)"
+                    elsif apspec = additional_properties.as?(Spec)
+                      "Hash(String, #{apspec.to_crystal(name)})"
                     else
                       name.camelcase
                     end
@@ -197,7 +204,7 @@ module Kubernetes
                         str << "  @[YAML::Field(key: #{name.inspect})]\n"
                         str << "  @[JSON::Field(key: #{name.inspect})]\n"
                         str << "  getter #{name.underscore} : #{spec.to_crystal(name)}\n"
-                        if spec.type == "object" && !spec.preserve_unknown_fields?
+                        if spec.type == "object" && !spec.preserve_unknown_fields? && !spec.additional_properties
                           spec.description.try &.each_line do |line|
                             str.puts "  # #{line}"
                           end
