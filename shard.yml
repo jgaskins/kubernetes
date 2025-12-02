@@ -11,6 +11,8 @@ targets:
 dependencies:
   db:
     github: crystal-lang/crystal-db
+  inotify:
+    github: petoem/inotify.cr
 
 crystal: 1.1.0
 

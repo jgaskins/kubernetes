@@ -6,6 +6,7 @@ require "uuid/json"
 require "uuid/yaml"
 require "uri/yaml"
 require "db/pool"
+require "inotify"
 
 require "./serializable"
 
@@ -13,6 +14,12 @@ module Kubernetes
   VERSION = "0.1.0"
 
   class Client
+    @cached_token : String?
+    @token_file_path : String?
+    @token_watcher : Inotify::Watcher?
+    @token_mutex : Mutex = Mutex.new
+    @http_pool : DB::Pool(HTTP::Client)
+
     def self.from_config(*, file : String = "#{ENV["HOME"]?}/.kube/config", context context_name : String? = nil)
       config = File.open(file) { |f| Config.from_yaml f }
 
@@ -150,13 +157,22 @@ module Kubernetes
       @tls : OpenSSL::SSL::Context::Client?,
       @log = Log.for("kubernetes.client"),
     )
-      @http_pool = DB::Pool(HTTP::Client).new do
-        http = HTTP::Client.new(server, tls: @tls)
-        http.before_request do |request|
-          token_value = token.call
+      @token_file_path = detect_token_file_path
+      @cached_token = load_token
+      @http_pool = create_http_pool
+      @token_watcher = start_token_watcher
+    end
 
-          if token_value.presence
-            request.headers["Authorization"] = "Bearer #{token_value}"
+    private def create_http_pool : DB::Pool(HTTP::Client)
+      DB::Pool(HTTP::Client).new do
+        http = HTTP::Client.new(@server, tls: @tls)
+        http.before_request do |request|
+          @token_mutex.synchronize do
+            if token_value = @cached_token
+              if token_value.presence
+                request.headers["Authorization"] = "Bearer #{token_value}"
+              end
+            end
           end
         end
         http
@@ -164,7 +180,60 @@ module Kubernetes
     end
 
     def close : Nil
+      @token_watcher.try(&.close)
       @http_pool.close
+    end
+
+    private def detect_token_file_path : String?
+      default_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+      if File.exists?(default_path)
+        default_path
+      else
+        nil
+      end
+    rescue File::Error
+      nil
+    end
+
+    private def load_token : String?
+      begin
+        @token.call
+      rescue ex : File::NotFoundError | File::Error
+        @log.warn { "Failed to read token: #{ex.message}" }
+        nil
+      end
+    end
+
+    private def start_token_watcher : Inotify::Watcher?
+      return nil unless path = @token_file_path
+      return nil unless File.exists?(path)
+
+      begin
+        parent_dir = File.dirname(path)
+        watcher = Inotify.watch(parent_dir) do |event|
+          if event.type.moved_to? && event.name == "..data"
+            reload_token_and_pool("Token rotated (#{event.type} #{event.name})")
+          elsif event.name == File.basename(path) && (event.type.modify? || event.type.close_write?)
+            reload_token_and_pool("Token file changed (#{event.type})")
+          end
+        end
+
+        @log.info { "Started inotify watcher for token directory: #{parent_dir}" }
+        watcher
+      rescue ex
+        @log.warn { "Failed to start token file watcher: #{ex.message}" }
+        nil
+      end
+    end
+
+    private def reload_token_and_pool(reason : String)
+      @token_mutex.synchronize do
+        @log.info { "#{reason}, reloading token and recreating HTTP pool" }
+        @cached_token = load_token
+        old_pool = @http_pool
+        @http_pool = create_http_pool
+        old_pool.close
+      end
     end
 
     def apis
@@ -193,12 +262,24 @@ module Kubernetes
     end
 
     def get(path : String, headers = HTTP::Headers.new, &)
-      @http_pool.checkout do |http|
-        path = path.gsub(%r{//+}, '/')
-        http.get path, headers: headers do |response|
-          yield response
-        ensure
-          response.body_io.skip_to_end
+      2.times do |attempt|
+        begin
+          @http_pool.checkout do |http|
+            path = path.gsub(%r{//+}, '/')
+            http.get path, headers: headers do |response|
+              yield response
+            ensure
+              response.body_io.skip_to_end
+            end
+          end
+          return
+        rescue ex : OpenSSL::SSL::Error
+          if attempt == 0
+            @log.warn { "SSL error (likely token rotation): #{ex.message}, recreating HTTP pool and retrying" }
+            reload_token_and_pool("SSL error recovery")
+          else
+            raise ex
+          end
         end
       end
     end
