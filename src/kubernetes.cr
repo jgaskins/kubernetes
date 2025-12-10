@@ -274,6 +274,27 @@ module Kubernetes
         end
       end
     end
+
+    protected def parse_response(response, type : T.class) : T? forall T
+      parse_response!(response, type)
+    rescue err : ClientError
+      nil
+    end
+
+    protected def parse_response!(response, type : T.class) : T forall T
+      case response
+      when .success?
+        type.from_json(response.body_io)
+      else
+        status = Status.from_json(response.body_io) rescue nil
+        case response.status
+        when .not_found?
+          raise ClientError.new("API resource not found", status, response)
+        else
+          raise ClientError.new("K8s API returned status code #{response.status_code}", status, response)
+        end
+      end
+    end
   end
 
   struct Resource(T)
@@ -511,18 +532,16 @@ module Kubernetes
         params["labelSelector"] = label_selector if label_selector
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}?#{params}"
         get path do |response|
-          case response.status
-          when .ok?
-            # JSON.parse response.body_io
-            {% if list_type %}
-              {{list_type}}.from_json response.body_io
-            {% else %}
-              ::Kubernetes::List({{type}}).from_json response.body_io
-            {% end %}
-          when .not_found?
-            raise ClientError.new "API resource \"{{name.id}}\" not found. Did you apply the CRD to the Kubernetes control plane?"
+          {% if list_type %}
+            parse_response!(response, {{list_type}}).not_nil!
+          {% else %}
+            parse_response!(response, ::Kubernetes::List({{type}})).not_nil!
+          {% end %}
+        rescue err : ClientError
+          if err.status_code == 404
+            raise ClientError.new("API resource \"{{name.id}}\" not found. Did you apply the CRD to the Kubernetes control plane?", err.status, response)
           else
-            raise Error.new("Unknown Kubernetes API response: #{response.status} - please report to https://github.com/jgaskins/kubernetes/issues")
+            raise err
           end
         end
       end
@@ -546,12 +565,7 @@ module Kubernetes
         }
 
         get "#{path}?#{params}" do |response|
-          case value = ({{type}} | Status).from_json response.body_io
-          when Status
-            nil
-          else
-            value
-          end
+          parse_response(response)
         end
       end
 
@@ -624,13 +638,7 @@ module Kubernetes
           metadata: metadata,
         }.merge(kwargs)
 
-        if body = response.body
-          # {{type}}.from_json response.body
-          # JSON.parse body
-          ({{type}} | Status).from_json body
-        else
-          raise "Missing response body"
-        end
+        parse_response(response)
       end
 
       def patch_{{singular_method_name.id}}(name : String, {% if cluster_wide == false %}namespace, {% end %}**kwargs)
@@ -640,11 +648,7 @@ module Kubernetes
         }
 
         response = raw_patch path, kwargs.to_json, headers: headers
-        if body = response.body
-          ({{type}} | Status).from_json body
-        else
-          raise "Missing response body"
-        end
+        parse_response(response)
       end
 
       def patch_{{singular_method_name.id}}_subresource(name : String, subresource : String{% if cluster_wide == false %}, namespace : String = "default"{% end %}, **args)
@@ -654,11 +658,7 @@ module Kubernetes
         }
 
         response = raw_patch path, {subresource => args}.to_json, headers: headers
-        if body = response.body
-          ({{type}} | Status).from_json body
-        else
-          raise "Missing response body"
-        end
+        parse_response(response)
       end
 
       def delete_{{singular_method_name.id}}(resource : {{type}})
@@ -694,20 +694,23 @@ module Kubernetes
                 message = response.body_io.gets_to_end
               end
 
-              raise ClientError.new("#{response.status}: #{message}")
+              raise ClientError.new("#{response.status}: #{message}", nil, response)
             end
 
             loop do
-              watch = Watch({{type}} | Status).from_json IO::Delimited.new(response.body_io, "\n")
+              json_string = response.body_io.read_line
 
-              # If there's a JSON parsing failure and we loop back around, we'll
-              # use this resource version to pick up where we left off.
-              if new_version = watch.object.metadata.resource_version.presence
-                resource_version = new_version
+              parser = JSON::PullParser.new(json_string)
+              kind = parser.on_key!("object") do
+                parser.on_key!("kind") do
+                  parser.read_string
+                end
               end
 
-              case obj = watch.object
-              when Status
+              if kind == "Status"
+                watch = Watch(Status).from_json(json_string)
+                obj = watch.object
+
                 if match = obj.message.match /too old resource version: \d+ \((\d+)\)/
                   resource_version = match[1]
                 end
@@ -715,11 +718,14 @@ module Kubernetes
                 # another request starting from the last resource version we've
                 # worked with.
                 next
-              else
-                watch = Watch.new(
-                  type: watch.type,
-                  object: obj,
-                )
+              end
+
+              watch = Watch({{type}}).from_json(json_string)
+
+              # If there's a JSON parsing failure and we loop back around, we'll
+              # use this resource version to pick up where we left off.
+              if new_version = watch.object.metadata.resource_version.presence
+                resource_version = new_version
               end
 
               yield watch
@@ -753,6 +759,15 @@ module Kubernetes
   end
 
   class ClientError < Error
+    getter :status, :raw_response
+
+    def initialize(message : String, @status : Status | Nil, @raw_response : HTTP::Client::Response)
+      super(message)
+    end
+
+    def status_code
+      @raw_response.try(&.status_code)
+    end
   end
 
   class UnexpectedResponse < Error
