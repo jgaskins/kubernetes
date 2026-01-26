@@ -314,6 +314,27 @@ module Kubernetes
         end
       end
     end
+
+    protected def parse_response(response, type : T.class) : T? forall T
+      parse_response!(response, type)
+    rescue err : ClientError
+      nil
+    end
+
+    protected def parse_response!(response, type : T.class) : T forall T
+      case response
+      when .success?
+        type.from_json(response.body_io)
+      else
+        status = Status.from_json(response.body_io) rescue nil
+        case response.status
+        when .not_found?
+          raise ClientError.new("API resource not found", status, response)
+        else
+          raise ClientError.new("K8s API returned status code #{response.status_code}", status, response)
+        end
+      end
+    end
   end
 
   struct Resource(T)
@@ -368,146 +389,6 @@ module Kubernetes
     Background
     Foreground
     Orphan
-  end
-
-  struct Service
-    include Serializable
-
-    field api_version : String = "v1"
-    field kind : String = "Service"
-    field metadata : Metadata
-    field spec : Spec
-    field status : Status
-
-    struct Spec
-      include Serializable
-
-      field cluster_ip : String = "", key: "clusterIP"
-      field cluster_ips : Array(String), key: "clusterIPs" { %w[] }
-      field external_ips : Array(String), key: "externalIPs" { %w[] }
-      field external_name : String?
-      field external_traffic_policy : TrafficPolicy?
-      field health_check_node_port : Int32?
-      field internal_traffic_policy : TrafficPolicy?
-      field ip_families : Array(IPFamily) { [] of IPFamily }
-      field ip_family_policy : IPFamilyPolicy
-      field load_balancer_ip : String?, key: "loadBalancerIP"
-      field load_balancer_source_ranges : String?
-      field ports : Array(Port) = [] of Port
-      field publish_not_ready_addresses : Bool?
-      field selector : Hash(String, String)?
-      field session_affinity : SessionAffinity?
-      field session_affinity_config : SessionAffinityConfig?
-      field type : Type
-
-      def initialize(@ports : Array(Port), @type = :cluster_ip, @ip_family_policy = :single_stack)
-      end
-    end
-
-    enum Type
-      ClusterIP
-      ExternalName
-      NodePort
-      LoadBalancer
-    end
-
-    enum TrafficPolicy
-      Local
-      Cluster
-    end
-
-    enum IPFamily
-      IPv4
-      IPv6
-    end
-
-    enum IPFamilyPolicy
-      SingleStack
-      PreferDualStack
-      RequireDualStack
-    end
-
-    struct Status
-      include Serializable
-
-      field conditions : Array(Condition) { [] of Condition }
-      field load_balancer : LoadBalancer::Status?
-    end
-
-    module LoadBalancer
-      struct Status
-        include Serializable
-
-        field ingress : Array(Ingress) { [] of Ingress }
-      end
-
-      struct Ingress
-        include Serializable
-
-        field hostname : String = ""
-        field ip : String = ""
-        field ports : Array(PortStatus) { [] of PortStatus }
-      end
-
-      struct PortStatus
-        include Serializable
-
-        field error : String?
-        field port : Int32 = -1
-        field protocol : Port::Protocol
-      end
-    end
-
-    struct Condition
-      include Serializable
-
-      field last_transition_time : Time
-      field message : String = ""
-      field observed_generation : Int64
-      field reason : String = ""
-      field status : Status
-      field type : String
-
-      enum Status
-        True
-        False
-        Unknown
-      end
-    end
-
-    struct Port
-      include Serializable
-
-      field app_protocol : String?
-      field name : String = ""
-      field node_port : Int32?
-      field port : Int32
-      field protocol : Protocol
-      field target_port : Int32 | String | Nil
-
-      enum Protocol
-        TCP
-        UDP
-        STCP
-      end
-    end
-
-    enum SessionAffinity
-      None
-      ClientIP
-    end
-
-    struct SessionAffinityConfig
-      include Serializable
-
-      field client_ip : ClientIPConfig?
-    end
-
-    struct ClientIPConfig
-      include Serializable
-
-      field timeout_seconds : Int32
-    end
   end
 
   struct APIGroup
@@ -602,388 +483,6 @@ module Kubernetes
     end
   end
 
-  struct StatefulSet
-    include Serializable
-
-    field replicas : Int32
-    field template : JSON::Any
-    field selector : JSON::Any
-    field volume_claim_templates : JSON::Any
-  end
-
-  struct Deployment
-    include Serializable
-
-    field metadata : Metadata
-    field spec : Spec
-    field status : Status?
-
-    def initialize(*, @metadata, @spec, @status = nil)
-    end
-
-    struct Status
-      include Serializable
-
-      field observed_generation : Int32 = -1
-      field replicas : Int32 = -1
-      field updated_replicas : Int32 = -1
-      field ready_replicas : Int32 = -1
-      field available_replicas : Int32 = -1
-      field conditions : Array(Condition) = [] of Condition
-
-      struct Condition
-        include Serializable
-
-        field type : String
-        field status : String
-        field last_update_time : Time
-        field last_transition_time : Time
-        field reason : String
-        field message : String
-      end
-    end
-
-    struct Spec
-      include Serializable
-
-      field replicas : Int32
-      field selector : Selector
-      field template : PodTemplate
-      field strategy : Strategy
-      field revision_history_limit : Int32
-      field progress_deadline_seconds : Int32
-
-      def initialize(
-        *,
-        @replicas = 1,
-        @selector = Selector.new,
-        @template,
-        @strategy = Strategy.new,
-        @revision_history_limit = 10,
-        @progress_deadline_seconds = 600,
-      )
-      end
-
-      struct Strategy
-        include Serializable
-
-        field type : String
-        field rolling_update : RollingUpdate?
-
-        struct RollingUpdate
-          include Serializable
-
-          field max_unavailable : String | Int32
-          field max_surge : String | Int32
-        end
-      end
-
-      struct Selector
-        include Serializable
-
-        field match_labels : Hash(String, String) = {} of String => String
-      end
-    end
-
-    struct Metadata
-      include Serializable
-
-      field name : String = ""
-      field namespace : String = ""
-      field uid : UUID = UUID.empty
-      field resource_version : String = ""
-      field generation : Int64 = -1
-      field creation_timestamp : Time = Time::UNIX_EPOCH
-      field labels : Hash(String, String) = {} of String => String
-      field annotations : Hash(String, String) = {} of String => String
-    end
-  end
-
-  struct PodTemplate
-    include Serializable
-
-    field metadata : Metadata?
-    field spec : PodSpec?
-  end
-
-  # https://github.com/kubernetes/kubernetes/blob/2dede1d4d453413da6fd852e00fc7d4c8784d2a8/staging/src/k8s.io/client-go/applyconfigurations/core/v1/podspec.go#L27-L63
-  struct PodSpec
-    include Serializable
-
-    field containers : Array(Container)
-    field restart_policy : String?
-    field termination_grace_period_seconds : Int32
-    field dns_policy : String
-    field service_account_name : String?
-    field service_account : String?
-    field security_context : JSON::Any
-    field scheduler_name : String
-  end
-
-  struct Container
-    include Serializable
-
-    field name : String
-    field image : String
-    field args : Array(String) = %w[]
-    field ports : Array(Port) = [] of Port
-    field env : Array(EnvVar) = [] of EnvVar
-    field resources : Resources = Resources.new
-    field termination_message_path : String?
-    field termination_message_policy : String?
-    field image_pull_policy : String
-
-    struct Resources
-      include Serializable
-
-      field requests : Resource?
-      field limits : Resource?
-
-      def initialize
-      end
-
-      struct Resource
-        include Serializable
-
-        field cpu : String?
-        field memory : String?
-      end
-    end
-
-    struct EnvVar
-      include Serializable
-
-      field name : String
-      field value : String { "" }
-      field value_from : EnvVarSource?
-    end
-
-    struct EnvVarSource
-      include Serializable
-
-      field field_ref : ObjectFieldSelector?
-      field config_map_key_ref : ConfigMapKeySelector?
-      field resource_field_ref : ResourceFieldSelector?
-      field secret_key_ref : SecretKeySelector?
-    end
-
-    struct ObjectFieldSelector
-      include Serializable
-
-      field api_version : String = "v1"
-      field field_path : String
-    end
-
-    struct ConfigMapKeySelector
-      include Serializable
-
-      field key : String
-      field name : String
-      field optional : Bool?
-    end
-
-    struct ResourceFieldSelector
-      include Serializable
-
-      field container_name : String?
-      field divisor : JSON::Any
-      field resource : String
-    end
-
-    struct SecretKeySelector
-      include Serializable
-
-      field key : String
-      field name : String
-      field optional : Bool?
-    end
-
-    struct Port
-      include Serializable
-
-      field container_port : Int32?
-      field protocol : String?
-    end
-  end
-
-  struct CronJob
-    include Serializable
-
-    field schedule : String
-    field job_template : JobTemplate
-
-    struct JobTemplate
-      include Serializable
-
-      field spec : Spec
-
-      struct Spec
-        include Serializable
-
-        field template : Job
-      end
-    end
-  end
-
-  # https://github.com/kubernetes/kubernetes/blob/2dede1d4d453413da6fd852e00fc7d4c8784d2a8/staging/src/k8s.io/client-go/applyconfigurations/batch/v1/jobspec.go#L29-L40
-  struct Job
-    include Serializable
-
-    field parallelism : Int32?
-    field completions : Int32?
-    field active_deadline_seconds : Int64?
-    field backoff_limit : Int32?
-    # TODO: Should Selector be extracted to a higher layer?
-    field selector : Deployment::Spec::Selector?
-    field? manual_selector : Bool?
-    # TODO: ditto?
-    field template : PodTemplate?
-    field ttl_seconds_after_finished : Int32?
-    field completion_mode : String?
-    field? suspend : Bool?
-  end
-
-  struct Pod
-    include Serializable
-
-    field metadata : Metadata
-    field spec : Spec
-    field status : JSON::Any
-
-    struct Spec
-      include Serializable
-
-      field volumes : Array(Volume) { [] of Volume }
-      field containers : Array(Container)
-      field restart_policy : String?
-      field termination_grace_period_seconds : Int32
-      field dns_policy : String
-      field service_account_name : String?
-      field service_account : String?
-      field node_name : String = ""
-      field security_context : JSON::Any
-      field scheduler_name : String
-      field tolerations : Array(Toleration)
-
-      struct Toleration
-        include Serializable
-
-        field key : String = ""
-        field operator : String = ""
-        field effect : String = ""
-        field toleration_seconds : Int32 = 0
-      end
-
-      struct Volume
-        include Serializable
-
-        field name : String
-        field projected : Template?
-
-        struct Template
-          include Serializable
-
-          field sources : Array(JSON::Any)
-          field default_mode : Int32
-        end
-      end
-    end
-
-    struct Metadata
-      include Serializable
-
-      field namespace : String
-      field name : String
-      field generate_name : String?
-      field uid : UUID
-      field resource_version : String
-      field creation_timestamp : Time
-      field labels : Hash(String, String) = {} of String => String
-      field annotations : Hash(String, String) = {} of String => String
-      field owner_references : Array(OwnerReference) = [] of OwnerReference
-
-      struct OwnerReference
-        include Serializable
-        field api_version : String = "apps/v1"
-        field name : String
-        field kind : String
-        field uid : UUID
-        field controller : Bool
-        field block_owner_deletion : Bool?
-      end
-    end
-  end
-
-  module Networking
-    struct Ingress
-      include Serializable
-
-      field ingress_class_name : String?
-      field rules : Array(Rule) { [] of Rule }
-      field tls : Array(TLS) { [] of TLS }
-
-      struct Rule
-        include Serializable
-
-        field host : String
-        field http : HTTP
-
-        struct HTTP
-          include Serializable
-
-          field paths : Array(Path)
-
-          struct Path
-            include Serializable
-
-            field path : String
-            field path_type : PathType
-            field backend : Backend
-
-            enum PathType
-              ImplementationSpecific
-              Exact
-              Prefix
-
-              def to_json(json : ::JSON::Builder) : Nil
-                to_s.to_json(json)
-              end
-
-              def to_yaml(yaml : YAML::Nodes::Builder) : Nil
-                to_s.to_yaml(yaml)
-              end
-            end
-          end
-        end
-      end
-
-      struct TLS
-        include Serializable
-        field hosts : Array(String)
-        field secret_name : String
-      end
-
-      struct Backend
-        include Serializable
-
-        getter service : Service
-
-        struct Service
-          include Serializable
-
-          field name : String
-          field port : Port
-
-          struct Port
-            include Serializable
-
-            field number : Int32
-          end
-        end
-      end
-    end
-  end
-
   struct List(T)
     include Serializable
     include Enumerable(T)
@@ -1073,36 +572,40 @@ module Kubernetes
         params["labelSelector"] = label_selector if label_selector
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}?#{params}"
         get path do |response|
-          case response.status
-          when .ok?
-            # JSON.parse response.body_io
-            {% if list_type %}
-              {{list_type}}.from_json response.body_io
-            {% else %}
-              ::Kubernetes::List({{type}}).from_json response.body_io
-            {% end %}
-          when .not_found?
-            raise ClientError.new "API resource \"{{name.id}}\" not found. Did you apply the CRD to the Kubernetes control plane?"
+          {% if list_type %}
+            parse_response!(response, {{list_type}}).not_nil!
+          {% else %}
+            parse_response!(response, ::Kubernetes::List({{type}})).not_nil!
+          {% end %}
+        rescue err : ClientError
+          if err.status_code == 404
+            raise ClientError.new("API resource \"{{name.id}}\" not found. Did you apply the CRD to the Kubernetes control plane?", err.status, response)
           else
-            raise Error.new("Unknown Kubernetes API response: #{response.status} - please report to https://github.com/jgaskins/kubernetes/issues")
+            raise err
           end
         end
       end
 
-      def {{singular_method_name.id}}(name : String, namespace : String = "default", resource_version : String = "")
-        namespace = "/namespaces/#{namespace}"
+      def {{singular_method_name.id}}(
+        name : String,
+        {% if cluster_wide == false %}
+          namespace : String = "default",
+        {% end %}
+        resource_version : String = ""
+      )
+        {% if cluster_wide == false %}
+          namespace &&= "/namespaces/#{namespace}"
+        {% else %}
+          namespace = nil
+        {% end %}
+
         path = "/{{prefix.id}}/{{group.id}}/{{version.id}}#{namespace}/{{name.id}}/#{name}"
         params = URI::Params{
           "resourceVersion" => resource_version,
         }
 
         get "#{path}?#{params}" do |response|
-          case value = ({{type}} | Status).from_json response.body_io
-          when Status
-            nil
-          else
-            value
-          end
+          parse_response(response)
         end
       end
 
@@ -1175,13 +678,7 @@ module Kubernetes
           metadata: metadata,
         }.merge(kwargs)
 
-        if body = response.body
-          # {{type}}.from_json response.body
-          # JSON.parse body
-          ({{type}} | Status).from_json body
-        else
-          raise "Missing response body"
-        end
+        parse_response(response)
       end
 
       def patch_{{singular_method_name.id}}(name : String, {% if cluster_wide == false %}namespace, {% end %}**kwargs)
@@ -1191,11 +688,7 @@ module Kubernetes
         }
 
         response = raw_patch path, kwargs.to_json, headers: headers
-        if body = response.body
-          ({{type}} | Status).from_json body
-        else
-          raise "Missing response body"
-        end
+        parse_response(response)
       end
 
       def patch_{{singular_method_name.id}}_subresource(name : String, subresource : String{% if cluster_wide == false %}, namespace : String = "default"{% end %}, **args)
@@ -1205,11 +698,7 @@ module Kubernetes
         }
 
         response = raw_patch path, {subresource => args}.to_json, headers: headers
-        if body = response.body
-          ({{type}} | Status).from_json body
-        else
-          raise "Missing response body"
-        end
+        parse_response(response)
       end
 
       def delete_{{singular_method_name.id}}(resource : {{type}})
@@ -1245,20 +734,23 @@ module Kubernetes
                 message = response.body_io.gets_to_end
               end
 
-              raise ClientError.new("#{response.status}: #{message}")
+              raise ClientError.new("#{response.status}: #{message}", nil, response)
             end
 
             loop do
-              watch = Watch({{type}} | Status).from_json IO::Delimited.new(response.body_io, "\n")
+              json_string = response.body_io.read_line
 
-              # If there's a JSON parsing failure and we loop back around, we'll
-              # use this resource version to pick up where we left off.
-              if new_version = watch.object.metadata.resource_version.presence
-                resource_version = new_version
+              parser = JSON::PullParser.new(json_string)
+              kind = parser.on_key!("object") do
+                parser.on_key!("kind") do
+                  parser.read_string
+                end
               end
 
-              case obj = watch.object
-              when Status
+              if kind == "Status"
+                watch = Watch(Status).from_json(json_string)
+                obj = watch.object
+
                 if match = obj.message.match /too old resource version: \d+ \((\d+)\)/
                   resource_version = match[1]
                 end
@@ -1266,11 +758,14 @@ module Kubernetes
                 # another request starting from the last resource version we've
                 # worked with.
                 next
-              else
-                watch = Watch.new(
-                  type: watch.type,
-                  object: obj,
-                )
+              end
+
+              watch = Watch({{type}}).from_json(json_string)
+
+              # If there's a JSON parsing failure and we loop back around, we'll
+              # use this resource version to pick up where we left off.
+              if new_version = watch.object.metadata.resource_version.presence
+                resource_version = new_version
               end
 
               yield watch
@@ -1304,51 +799,19 @@ module Kubernetes
   end
 
   class ClientError < Error
+    getter :status, :raw_response
+
+    def initialize(message : String, @status : Status | Nil, @raw_response : HTTP::Client::Response)
+      super(message)
+    end
+
+    def status_code
+      @raw_response.try(&.status_code)
+    end
   end
 
   class UnexpectedResponse < Error
   end
-
-  define_resource "deployments",
-    group: "apps",
-    type: Deployment
-
-  define_resource "statefulsets",
-    group: "apps",
-    type: Resource(StatefulSet),
-    kind: "StatefulSet"
-
-  define_resource "cronjobs",
-    group: "batch",
-    type: Resource(CronJob),
-    kind: "CronJob"
-
-  define_resource "jobs",
-    group: "batch",
-    type: Resource(Job),
-    kind: "Job"
-
-  define_resource "services",
-    group: "",
-    type: Service,
-    prefix: "api"
-
-  define_resource "persistentvolumeclaims",
-    group: "",
-    type: Resource(JSON::Any), # TODO: Write PVC struct,
-    prefix: "api",
-    kind: "PersistentVolumeClaim"
-
-  define_resource "ingresses",
-    singular_name: "ingress",
-    group: "networking.k8s.io",
-    type: Resource(Networking::Ingress),
-    kind: "Ingress"
-
-  define_resource "pods",
-    group: "",
-    type: Pod,
-    prefix: "api"
 
   struct Config
     include Serializable
@@ -1450,3 +913,5 @@ module Kubernetes
     end
   end
 end
+
+require "./types/**"
